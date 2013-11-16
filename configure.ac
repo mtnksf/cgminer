@@ -191,7 +191,7 @@ AC_ARG_ENABLE([adl],
 	[adl=$enableval]
 	)
 
-scrypt="no"
+scrypt="yes"
 
 if test "$found_opencl" = 1; then
 	if test "x$adl" != xno; then
@@ -223,113 +223,23 @@ AM_CONDITIONAL([HAS_SCRYPT], [test x$scrypt = xyes])
 
 avalon="no"
 
-AC_ARG_ENABLE([avalon],
-	[AC_HELP_STRING([--enable-avalon],[Compile support for Avalon (default disabled)])],
-	[avalon=$enableval]
-	)
-if test "x$avalon" = xyes; then
-	AC_DEFINE([USE_AVALON], [1], [Defined to 1 if Avalon support is wanted])
-fi
-AM_CONDITIONAL([HAS_AVALON], [test x$avalon = xyes])
-
 knc="no"
-
-AC_ARG_ENABLE([knc],
-	[AC_HELP_STRING([--enable-knc],[Compile support for KnC miners (default disabled)])],
-	[knc=$enableval]
-	)
-if test "x$knc" = xyes; then
-	AC_DEFINE([USE_KNC], [1], [Defined to 1 if KnC miner support is wanted])
-fi
-AM_CONDITIONAL([HAS_KNC], [test x$knc = xyes])
 
 bflsc="no"
 
-AC_ARG_ENABLE([bflsc],
-	[AC_HELP_STRING([--enable-bflsc],[Compile support for BFL ASICs (default disabled)])],
-	[bflsc=$enableval]
-	)
-if test "x$bflsc" = xyes; then
-	AC_DEFINE([USE_BFLSC], [1], [Defined to 1 if BFL ASIC support is wanted])
-fi
-AM_CONDITIONAL([HAS_BFLSC], [test x$bflsc = xyes])
-
 bitforce="no"
-
-AC_ARG_ENABLE([bitforce],
-	[AC_HELP_STRING([--enable-bitforce],[Compile support for BitForce FPGAs (default disabled)])],
-	[bitforce=$enableval]
-	)
-if test "x$bitforce" = xyes; then
-	AC_DEFINE([USE_BITFORCE], [1], [Defined to 1 if BitForce support is wanted])
-fi
-AM_CONDITIONAL([HAS_BITFORCE], [test x$bitforce = xyes])
 
 bitfury="no"
 
-AC_ARG_ENABLE([bitfury],
-	[AC_HELP_STRING([--enable-bitfury],[Compile support for BitFury ASICs (default disabled)])],
-	[bitfury=$enableval]
-	)
-if test "x$bitfury" = xyes; then
-	AC_DEFINE([USE_BITFURY], [1], [Defined to 1 if BitFury support is wanted])
-fi
-AM_CONDITIONAL([HAS_BITFURY], [test x$bitfury = xyes])
-
 hashfast="no"
-
-AC_ARG_ENABLE([hashfast],
-	[AC_HELP_STRING([--enable-hashfast],[Compile support for Hashfast (default disabled)])],
-	[hashfast=$enableval]
-	)
-if test "x$hashfast" = xyes; then
-	AC_DEFINE([USE_HASHFAST], [1], [Defined to 1 if Hashfast support is wanted])
-fi
-AM_CONDITIONAL([HAS_HASHFAST], [test x$hashfast = xyes])
 
 bab="no"
 
-AC_ARG_ENABLE([bab],
-	[AC_HELP_STRING([--enable-bab],[Compile support for BlackArrow Bitfury (default disabled)])],
-	[bab=$enableval]
-	)
-if test "x$bab" = xyes; then
-	AC_DEFINE([USE_BAB], [1], [Defined to 1 if BlackArrow Bitfury support is wanted])
-fi
-AM_CONDITIONAL([HAS_BAB], [test x$bab = xyes])
-
 icarus="no"
-
-AC_ARG_ENABLE([icarus],
-	[AC_HELP_STRING([--enable-icarus],[Compile support for Icarus (default disabled)])],
-	[icarus=$enableval]
-	)
-if test "x$icarus" = xyes; then
-	AC_DEFINE([USE_ICARUS], [1], [Defined to 1 if Icarus support is wanted])
-fi
-AM_CONDITIONAL([HAS_ICARUS], [test x$icarus = xyes])
 
 klondike="no"
 
-AC_ARG_ENABLE([klondike],
-	[AC_HELP_STRING([--enable-klondike],[Compile support for Klondike (default disabled)])],
-	[klondike=$enableval]
-	)
-if test "x$klondike" = xyes; then
-	AC_DEFINE([USE_KLONDIKE], [1], [Defined to 1 if Klondike support is wanted])
-fi
-AM_CONDITIONAL([HAS_KLONDIKE], [test x$klondike = xyes])
-
 modminer="no"
-
-AC_ARG_ENABLE([modminer],
-	[AC_HELP_STRING([--enable-modminer],[Compile support for ModMiner FPGAs(default disabled)])],
-	[modminer=$enableval]
-	)
-if test "x$modminer" = xyes; then
-	AC_DEFINE([USE_MODMINER], [1], [Defined to 1 if ModMiner support is wanted])
-fi
-AM_CONDITIONAL([HAS_MODMINER], [test x$modminer = xyes])
 
 curses="auto"
 
@@ -355,11 +265,7 @@ else
 	])
 fi
 
-if test x$avalon$bitforce$bitfury$modminer$bflsc$icarus$hashfast$klondike != xnononononononono; then
-	want_usbutils=true
-else
-	want_usbutils=false
-fi
+want_usbutils=false
 
 AM_CONDITIONAL([NEED_FPGAUTILS], [test x$modminer != xno])
 AM_CONDITIONAL([WANT_USBUTILS], [test x$want_usbutils != xfalse])
@@ -367,39 +273,7 @@ AM_CONDITIONAL([HAVE_CURSES], [test x$curses = xyes])
 AM_CONDITIONAL([HAVE_WINDOWS], [test x$have_win32 = xtrue])
 AM_CONDITIONAL([HAVE_x86_64], [test x$have_x86_64 = xtrue])
 
-if test "x$want_usbutils" != xfalse; then
-	dlibusb="no"
-	AC_DEFINE([USE_USBUTILS], [1], [Defined to 1 if usbutils support required])
-	AC_ARG_WITH([system-libusb],
-		[AC_HELP_STRING([--with-system-libusb],[Compile against dynamic system libusb (default use included static libusb)])],
-		[dlibusb=$withval]
-	)
-
-	if test "x$dlibusb" != xno; then
-		case $target in
-			*-*-freebsd*)
-				LIBUSB_LIBS="-lusb"
-				LIBUSB_CFLAGS=""
-				AC_DEFINE(HAVE_LIBUSB, 1, [Define if you have libusb-1.0])
-				;;
-			*)
-				PKG_CHECK_MODULES(LIBUSB, libusb-1.0, [AC_DEFINE(HAVE_LIBUSB, 1, [Define if you have libusb-1.0])], [AC_MSG_ERROR([Could not find usb library - please install libusb-1.0])])
-				;;
-		esac
-	else
-		AC_CONFIG_SUBDIRS([compat/libusb-1.0])
-		LIBUSB_LIBS="compat/libusb-1.0/libusb/.libs/libusb-1.0.a"
-		if test "x$have_linux" = "xtrue"; then
-			LIBUSB_LIBS+=" -ludev"
-		fi
-		if test "x$have_darwin" = "xtrue"; then
-			LIBUSB_LIBS+=" -lobjc"
-			LDFLAGS+=" -framework CoreFoundation -framework IOKit"
-		fi
-	fi
-else
-	LIBUSB_LIBS=""
-fi
+LIBUSB_LIBS=""
 
 AM_CONDITIONAL([WANT_STATIC_LIBUSB], [test x$dlibusb = xno])
 
@@ -487,13 +361,6 @@ fi
 
 AC_DEFINE_UNQUOTED([CGMINER_PREFIX], ["$prefix/bin"], [Path to cgminer install])
 
-AC_DEFINE_UNQUOTED([PHATK_KERNNAME], ["phatk121016"], [Filename for phatk kernel])
-AC_DEFINE_UNQUOTED([POCLBM_KERNNAME], ["poclbm130302"], [Filename for poclbm kernel])
-AC_DEFINE_UNQUOTED([DIAKGCN_KERNNAME], ["diakgcn121016"], [Filename for diakgcn kernel])
-AC_DEFINE_UNQUOTED([DIABLO_KERNNAME], ["diablo130302"], [Filename for diablo kernel])
-AC_DEFINE_UNQUOTED([SCRYPT_KERNNAME], ["scrypt130511"], [Filename for scrypt kernel])
-
-
 AC_SUBST(OPENCL_LIBS)
 AC_SUBST(OPENCL_FLAGS)
 AC_SUBST(JANSSON_LIBS)
@@ -572,72 +439,13 @@ else
 fi
 
 echo
-if test "x$avalon" = xyes; then
-	echo "  Avalon.ASICs.........: Enabled"
-else
-	echo "  Avalon.ASICs.........: Disabled"
-fi
-
-if test "x$bflsc" = xyes; then
-	echo "  BFL.ASICs............: Enabled"
-else
-	echo "  BFL.ASICs............: Disabled"
-fi
-
-if test "x$knc" = xyes; then
-	echo "  KnC.ASICs............: Enabled"
-else
-	echo "  KnC.ASICs............: Disabled"
-fi
-
-if test "x$bitforce" = xyes; then
-	echo "  BitForce.FPGAs.......: Enabled"
-else
-	echo "  BitForce.FPGAs.......: Disabled"
-fi
-
-if test "x$bitfury" = xyes; then
-	echo "  BitFury.ASICs........: Enabled"
-else
-	echo "  BitFury.ASICs........: Disabled"
-fi
-
-if test "x$hashfast" = xyes; then
-	echo "  Hashfast.ASICs.......: Enabled"
-else
-	echo "  Hashfast.ASICs.......: Disabled"
-fi
-
-if test "x$bab" = xyes; then
-	echo "  BlackArrow.ASICs.....: Enabled"
-else
-	echo "  BlackArrow.ASICs.....: Disabled"
-fi
-
-if test "x$icarus" = xyes; then
-	echo "  Icarus.ASICs/FPGAs...: Enabled"
-else
-	echo "  Icarus.ASICs/FPGAs...: Disabled"
-fi
-
-if test "x$klondike" = xyes; then
-	echo "  Klondike.ASICs.......: Enabled"
-else
-	echo "  Klondike.ASICs.......: Disabled"
-fi
-
-if test "x$modminer" = xyes; then
-	echo "  ModMiner.FPGAs.......: Enabled"
-else
-	echo "  ModMiner.FPGAs.......: Disabled"
-fi
 
 echo
 echo "Compilation............: make (or gmake)"
 echo "  CPPFLAGS.............: $CPPFLAGS"
 echo "  CFLAGS...............: $CFLAGS"
 echo "  LDFLAGS..............: $LDFLAGS $PTHREAD_FLAGS"
-echo "  LDADD................: $DLOPEN_FLAGS $LIBCURL_LIBS $JANSSON_LIBS $PTHREAD_LIBS $OPENCL_LIBS $NCURSES_LIBS $PDCURSES_LIBS $WS2_LIBS $MATH_LIBS $LIBUSB_LIBS $RT_LIBS"
+echo "  LDADD................: $DLOPEN_FLAGS $LIBCURL_LIBS $JANSSON_LIBS $PTHREAD_LIBS $OPENCL_LIBS $NCURSES_LIBS $PDCURSES_LIBS $WS2_LIBS $MATH_LIBS $RT_LIBS"
 echo
 echo "Installation...........: make install (as root if needed, with 'su' or 'sudo')"
 echo "  prefix...............: $prefix"
