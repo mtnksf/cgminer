@@ -196,16 +196,8 @@ scrypt="yes"
 if test "$found_opencl" = 1; then
 	if test "x$adl" != xno; then
 		ADL_CPPFLAGS=
-		AC_CHECK_FILE([$srcdir/ADL_SDK/adl_sdk.h], [have_adl=true; ADL_CPPFLAGS=-I$srcdir], have_adl=false,)
-		if test x$have_adl+$have_cgminer_sdk = xfalse+true; then
-			AC_CHECK_FILE([$CGMINER_SDK/include/ADL_SDK/adl_sdk.h], [have_adl=true; ADL_CPPFLAGS=-I$CGMINER_SDK/include], have_adl=false,)
-		fi
-		if test x$have_adl = xtrue
-		then
-			AC_DEFINE([HAVE_ADL], [1], [Defined if ADL headers were found])
-		else
-			DLOPEN_FLAGS=""
-		fi
+		
+		AC_DEFINE([HAVE_ADL], [1], [Defined if ADL headers were found])
 	fi
 
 	AC_ARG_ENABLE([scrypt],
