@@ -135,12 +135,8 @@ if test -n "$CGMINER_SDK"; then
 	LDFLAGS="-L$CGMINER_SDK/lib/$target $LDFLAGS"
 fi
 
-opencl="no"
+opencl="yes"
 
-AC_ARG_ENABLE([opencl],
-	[AC_HELP_STRING([--enable-opencl],[Enable support for GPU mining with opencl])],
-	[opencl=$enableval]
-	)
 if test "x$opencl" != xno; then
 	# Check for OpenCL (the long way needed on mingw32 due to calling conventions)
 	AC_MSG_CHECKING([for OpenCL])
@@ -200,10 +196,6 @@ if test "$found_opencl" = 1; then
 		AC_DEFINE([HAVE_ADL], [1], [Defined if ADL headers were found])
 	fi
 
-	AC_ARG_ENABLE([scrypt],
-		[AC_HELP_STRING([--enable-scrypt],[Compile support for scrypt litecoin mining (default disabled)])],
-		[scrypt=$enableval]
-		)
 	if test "x$scrypt" = xyes; then
 		AC_DEFINE([USE_SCRYPT], [1], [Defined to 1 if scrypt support is wanted])
 	fi
@@ -212,26 +204,6 @@ else
 fi
 
 AM_CONDITIONAL([HAS_SCRYPT], [test x$scrypt = xyes])
-
-avalon="no"
-
-knc="no"
-
-bflsc="no"
-
-bitforce="no"
-
-bitfury="no"
-
-hashfast="no"
-
-bab="no"
-
-icarus="no"
-
-klondike="no"
-
-modminer="no"
 
 curses="auto"
 
@@ -257,17 +229,9 @@ else
 	])
 fi
 
-want_usbutils=false
-
-AM_CONDITIONAL([NEED_FPGAUTILS], [test x$modminer != xno])
-AM_CONDITIONAL([WANT_USBUTILS], [test x$want_usbutils != xfalse])
 AM_CONDITIONAL([HAVE_CURSES], [test x$curses = xyes])
 AM_CONDITIONAL([HAVE_WINDOWS], [test x$have_win32 = xtrue])
 AM_CONDITIONAL([HAVE_x86_64], [test x$have_x86_64 = xtrue])
-
-LIBUSB_LIBS=""
-
-AM_CONDITIONAL([WANT_STATIC_LIBUSB], [test x$dlibusb = xno])
 
 AC_CONFIG_SUBDIRS([compat/jansson-2.5])
 JANSSON_LIBS="compat/jansson-2.5/src/.libs/libjansson.a"
@@ -283,9 +247,6 @@ if test "x$have_cgminer_sdk" = "xtrue"; then
 	PKG_CONFIG="${PKG_CONFIG:-pkg-config} --define-variable=arch=$ARCH_DIR --define-variable=target=$target --define-variable=cgminersdkdir=$CGMINER_SDK"
 	PKG_CONFIG_PATH="$CGMINER_SDK/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 fi
-
-AC_SUBST(LIBUSB_LIBS)
-AC_SUBST(LIBUSB_CFLAGS)
 
 AC_ARG_ENABLE([libcurl],
 	[AC_HELP_STRING([--disable-libcurl],[Disable building with libcurl for getwork and GBT support])],
@@ -398,31 +359,19 @@ echo "  curses.TUI...........: $cursesmsg"
 
 if test "x$opencl" != xno; then
 	if test $found_opencl = 1; then
-		echo "  OpenCL...............: FOUND. GPU mining support enabled"
-	if test "x$scrypt" != xno; then
-		echo "  scrypt...............: Enabled"
+		echo "  OpenCL...............: FOUND."
 	else
-		echo "  scrypt...............: Disabled"
-	fi
-
-	else
-		echo "  OpenCL...............: NOT FOUND. GPU mining support DISABLED"
-		if test "x$avalon$bitforce$bitfury$icarus$modminer$bflsc$hashfast$klondike$knc$bab" = xnononononononononono; then
-			AC_MSG_ERROR([No mining configured in])
-		fi
-		echo "  scrypt...............: Disabled (needs OpenCL)"
+		echo "  OpenCL...............: NOT FOUND."
+		AC_MSG_ERROR([No mining configured in])
 	fi
 else
 	echo "  OpenCL...............: Detection overrided. GPU mining support DISABLED"
-	if test "x$avalon$bitforce$bitfury$icarus$modminer$bflsc$hashfast$klondike$knc$bab" = xnononononononononono; then
-		AC_MSG_ERROR([No mining configured in])
-	fi
-	echo "  scrypt...............: Disabled (needs OpenCL)"
+	AC_MSG_ERROR([No mining configured in])
 fi
 
 if test "x$adl" != xno; then
 	if test x$have_adl = xtrue; then
-		echo "  ADL..................: SDK found, GPU monitoring support enabled"
+		echo "  ADL..................: SDK found, GPU monitoring support ENABLED"
 	else
 		echo "  ADL..................: SDK NOT found, GPU monitoring support DISABLED"
 	fi
