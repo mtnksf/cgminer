@@ -370,11 +370,7 @@ else
 fi
 
 if test "x$adl" != xno; then
-	if test x$have_adl = xtrue; then
-		echo "  ADL..................: SDK found, GPU monitoring support ENABLED"
-	else
-		echo "  ADL..................: SDK NOT found, GPU monitoring support DISABLED"
-	fi
+	echo "  ADL..................: GPU monitoring support ENABLED"
 else
 	echo "  ADL..................: Detection overrided. GPU monitoring support DISABLED"
 fi
