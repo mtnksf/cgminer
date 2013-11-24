@@ -1,8 +1,11 @@
+/* Licensed under GPLv3+ - see LICENSE file for details */
 #include <ccan/opt/opt.h>
+#include <ccan/cast/cast.h>
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <stdio.h>
+#include <limits.h>
 #include "private.h"
 
 /* Upper bound to sprintf this simple type?  Each 3 bits < 1 digit. */
@@ -50,11 +53,12 @@ char *opt_set_invbool_arg(const char *arg, bool *b)
 /* Set a char *. */
 char *opt_set_charp(const char *arg, char **p)
 {
-	*p = (char *)arg;
+	*p = cast_const(char *, arg);
 	return NULL;
 }
 
-/* Set an integer value, various forms.  Sets to 1 on arg == NULL. */
+/* Set an integer value, various forms.
+   FIXME: set to 1 on arg == NULL ? */
 char *opt_set_intval(const char *arg, int *i)
 {
 	long l;
@@ -63,23 +67,10 @@ char *opt_set_intval(const char *arg, int *i)
 	if (err)
 		return err;
 	*i = l;
-	/* Beware truncation... */
-	if (*i != l)
+	/* Beware truncation, but don't generate untestable code. */
+	if (sizeof(*i) != sizeof(l) && *i != l)
 		return arg_bad("value '%s' does not fit into an integer", arg);
 	return err;
-}
-
-char *opt_set_floatval(const char *arg, float *f)
-{
-	char *endp;
-
-	errno = 0;
-	*f = strtof(arg, &endp);
-	if (*endp || !arg[0])
-		return arg_bad("'%s' is not a number", arg);
-	if (errno)
-		return arg_bad("'%s' is out of range", arg);
-	return NULL;
 }
 
 char *opt_set_uintval(const char *arg, unsigned int *ui)
@@ -90,7 +81,7 @@ char *opt_set_uintval(const char *arg, unsigned int *ui)
 	if (err)
 		return err;
 	if (i < 0)
-		return arg_bad("'%s' is negative", arg);
+		return arg_bad("'%s' is negative but destination is unsigned", arg);
 	*ui = i;
 	return NULL;
 }
@@ -113,13 +104,13 @@ char *opt_set_ulongval(const char *arg, unsigned long *ul)
 {
 	long int l;
 	char *err;
-	
+
 	err = opt_set_longval(arg, &l);
 	if (err)
 		return err;
 	*ul = l;
 	if (l < 0)
-		return arg_bad("'%s' is negative", arg);
+		return arg_bad("'%s' is negative but destination is unsigned", arg);
 	return NULL;
 }
 
@@ -133,14 +124,18 @@ char *opt_inc_intval(int *i)
 char *opt_version_and_exit(const char *version)
 {
 	printf("%s\n", version);
-	fflush(stdout);
+	/* Don't have valgrind complain! */
+	opt_free_table();
 	exit(0);
 }
 
 char *opt_usage_and_exit(const char *extra)
 {
-	printf("%s", opt_usage(opt_argv0, extra));
-	fflush(stdout);
+	char *usage = opt_usage(opt_argv0, extra);
+	printf("%s", usage);
+	/* Don't have valgrind complain! */
+	opt_alloc.free(usage);
+	opt_free_table();
 	exit(0);
 }
 
@@ -166,15 +161,10 @@ void opt_show_charp(char buf[OPT_SHOW_LEN], char *const *p)
 		buf[2+len] = '\0';
 }
 
-/* Set an integer value, various forms.  Sets to 1 on arg == NULL. */
+/* Show an integer value, various forms. */
 void opt_show_intval(char buf[OPT_SHOW_LEN], const int *i)
 {
 	snprintf(buf, OPT_SHOW_LEN, "%i", *i);
-}
-
-void opt_show_floatval(char buf[OPT_SHOW_LEN], const float *f)
-{
-	snprintf(buf, OPT_SHOW_LEN, "%.1f", *f);
 }
 
 void opt_show_uintval(char buf[OPT_SHOW_LEN], const unsigned int *ui)
@@ -191,3 +181,314 @@ void opt_show_ulongval(char buf[OPT_SHOW_LEN], const unsigned long *ul)
 {
 	snprintf(buf, OPT_SHOW_LEN, "%lu", *ul);
 }
+
+/* a helper function that multiplies out an argument's kMGTPE suffix in the
+ * long long int range, and perform checks common to all integer destinations.
+ *
+ * The base will be either 1000 or 1024, corresponding with the '_si' and
+ * '_bi' functions.
+ */
+
+static char *set_llong_with_suffix(const char *arg, long long *ll,
+				   const long long base)
+{
+	char *endp;
+	if (!arg[0])
+		return arg_bad("'%s' (an empty string) is not a number", arg);
+
+	errno = 0;
+	*ll = strtoll(arg, &endp, 0);
+	if (errno)
+		return arg_bad("'%s' is out of range", arg);
+	if (*endp){
+		/*The string continues with non-digits.  If there is just one
+		  letter and it is a known multiplier suffix, use it.*/
+		if (endp[1])
+			return arg_bad("'%s' is not a number (suffix too long)", arg);
+		long long mul;
+		switch(*endp){
+		case 'K':
+		case 'k':
+			mul = base;
+			break;
+		case 'M':
+		case 'm':
+			mul = base * base;
+			break;
+		case 'G':
+		case 'g':
+			mul = base * base * base;
+			break;
+		case 'T':
+		case 't':
+			mul = base * base * base * base;
+			break;
+		case 'P':
+			mul = base * base * base * base * base;
+			break;
+		case 'E':
+			mul = base * base * base * base * base * base;
+			break;
+		/* This is as far as we can go in 64 bits ('E' is 2 ^ 60) */
+		default:
+			return arg_bad("'%s' is not a number (unknown suffix)",
+				       arg);
+		}
+		if (*ll > LLONG_MAX / mul || *ll < LLONG_MIN / mul)
+			return arg_bad("'%s' is out of range", arg);
+		*ll *= mul;
+	}
+	return NULL;
+}
+
+/* Middle layer helpers that perform bounds checks for specific target sizes
+ * and signednesses.
+ */
+static char * set_ulonglong_with_suffix(const char *arg, unsigned long long *ull,
+					const long base)
+{
+	long long ll;
+	char *err = set_llong_with_suffix(arg, &ll, base);
+	if (err != NULL)
+		return err;
+	if (ll < 0)
+		return arg_bad("'%s' is negative but destination is unsigned", arg);
+	*ull = ll;
+	return NULL;
+}
+
+static char * set_long_with_suffix(const char *arg, long *l, const long base)
+{
+	long long ll;
+	char *err = set_llong_with_suffix(arg, &ll, base);
+	if (err != NULL) /*an error*/
+		return err;
+
+	*l = ll;
+	/* Beware truncation, but don't generate untestable code. */
+	if (sizeof(*l) != sizeof(ll) && *l != ll)
+		return arg_bad("value '%s' does not fit into a long", arg);
+	return NULL;
+}
+
+static char * set_ulong_with_suffix(const char *arg, unsigned long *ul, const long base)
+{
+	long long ll;
+	char *err = set_llong_with_suffix(arg, &ll, base);
+	if (err != NULL)
+		return err;
+	if (ll < 0)
+		return arg_bad("'%s' is negative but destination is unsigned", arg);
+	*ul = ll;
+	/* Beware truncation, but don't generate untestable code. */
+	if (sizeof(*ul) != sizeof(ll) && *ul != ll)
+		return arg_bad("value '%s' does not fit into an unsigned long", arg);
+	return NULL;
+}
+
+static char * set_int_with_suffix(const char *arg, int *i, const long base)
+{
+	long long ll;
+	char *err = set_llong_with_suffix(arg, &ll, base);
+	if (err != NULL) /*an error*/
+		return err;
+
+	*i = ll;
+	if (*i != ll)
+		return arg_bad("value '%s' does not fit into an int", arg);
+	return NULL;
+}
+
+static char * set_uint_with_suffix(const char *arg, unsigned int *u, const long base)
+{
+	long long ll;
+	char *err = set_llong_with_suffix(arg, &ll, base);
+	if (err != NULL)
+		return err;
+	if (ll < 0)
+		return arg_bad("'%s' is negative but destination is unsigned", arg);
+	*u = ll;
+	if (*u != ll)
+		return arg_bad("value '%s' does not fit into an unsigned int", arg);
+	return NULL;
+}
+
+/*Set an integer, with decimal or binary suffixes.
+  The accepted suffixes are k/K, M/m, G/g, T, P, E.
+
+  The *_bi functions multiply the numeric value by a power of 1024, while the
+  *_si functions multiply by a power of 1000.
+ */
+
+char * opt_set_ulonglongval_bi(const char *arg, unsigned long long *ll)
+{
+	return set_ulonglong_with_suffix(arg, ll, 1024);
+}
+
+char * opt_set_ulonglongval_si(const char *arg, unsigned long long *ll)
+{
+	return set_ulonglong_with_suffix(arg, ll, 1000);
+}
+
+char * opt_set_longlongval_bi(const char *arg, long long *ll)
+{
+	return set_llong_with_suffix(arg, ll, 1024);
+}
+
+char * opt_set_longlongval_si(const char *arg, long long *ll)
+{
+	return set_llong_with_suffix(arg, ll, 1000);
+}
+
+char * opt_set_longval_bi(const char *arg, long *l)
+{
+	return set_long_with_suffix(arg, l, 1024);
+}
+
+char * opt_set_longval_si(const char *arg, long *l)
+{
+	return set_long_with_suffix(arg, l, 1000);
+}
+
+char * opt_set_ulongval_bi(const char *arg, unsigned long *ul)
+{
+	return set_ulong_with_suffix(arg, ul, 1024);
+}
+
+char * opt_set_ulongval_si(const char *arg, unsigned long *ul)
+{
+	return set_ulong_with_suffix(arg, ul, 1000);
+}
+
+char * opt_set_intval_bi(const char *arg, int *i)
+{
+	return set_int_with_suffix(arg, i, 1024);
+}
+
+char * opt_set_intval_si(const char *arg, int *i)
+{
+	return set_int_with_suffix(arg, i, 1000);
+}
+
+char * opt_set_uintval_bi(const char *arg, unsigned int *u)
+{
+	return set_uint_with_suffix(arg, u, 1024);
+}
+
+char * opt_set_uintval_si(const char *arg, unsigned int *u)
+{
+	return set_uint_with_suffix(arg, u, 1000);
+}
+
+/*static helpers for showing values with kMGTPE suffixes.  In this case there
+  are separate but essentially identical functions for signed and unsigned
+  values, so that unsigned values greater than LLONG_MAX get suffixes.
+ */
+static void show_llong_with_suffix(char buf[OPT_SHOW_LEN], long long ll,
+				    const long long base)
+{
+	const char *suffixes = "kMGTPE";
+	int i;
+	if (ll == 0){
+		/*zero is special because everything divides it (you'd get "0E")*/
+		snprintf(buf, OPT_SHOW_LEN, "0");
+		return;
+	}
+	for (i = 0; i < strlen(suffixes); i++){
+		long long tmp = ll / base;
+		if (tmp * base != ll)
+			break;
+		ll = tmp;
+	}
+	if (i == 0)
+		snprintf(buf, OPT_SHOW_LEN, "%lld", ll);
+	else
+		snprintf(buf, OPT_SHOW_LEN, "%lld%c", ll, suffixes[i - 1]);
+}
+
+static void show_ullong_with_suffix(char buf[OPT_SHOW_LEN], unsigned long long ull,
+				    const unsigned base)
+{
+	const char *suffixes = "kMGTPE";
+	int i;
+	if (ull == 0){
+		/*zero is special because everything divides it (you'd get "0E")*/
+		snprintf(buf, OPT_SHOW_LEN, "0");
+		return;
+	}
+	for (i = 0; i < strlen(suffixes); i++){
+		unsigned long long tmp = ull / base;
+		if (tmp * base != ull)
+			break;
+		ull = tmp;
+	}
+	if (i == 0)
+		snprintf(buf, OPT_SHOW_LEN, "%llu", ull);
+	else
+		snprintf(buf, OPT_SHOW_LEN, "%llu%c", ull, suffixes[i - 1]);
+}
+
+/* _bi, signed */
+void opt_show_intval_bi(char buf[OPT_SHOW_LEN], const int *x)
+{
+	show_llong_with_suffix(buf, *x, 1024);
+}
+
+void opt_show_longval_bi(char buf[OPT_SHOW_LEN], const long *x)
+{
+	show_llong_with_suffix(buf, *x, 1024);
+}
+
+void opt_show_longlongval_bi(char buf[OPT_SHOW_LEN], const long long *x)
+{
+	show_llong_with_suffix(buf, *x, 1024);
+}
+
+/* _bi, unsigned */
+void opt_show_uintval_bi(char buf[OPT_SHOW_LEN], const unsigned int *x)
+{
+	show_ullong_with_suffix(buf, (unsigned long long) *x, 1024);
+}
+
+void opt_show_ulongval_bi(char buf[OPT_SHOW_LEN], const unsigned long *x)
+{
+	show_ullong_with_suffix(buf, (unsigned long long) *x, 1024);
+}
+
+void opt_show_ulonglongval_bi(char buf[OPT_SHOW_LEN], const unsigned long long *x)
+{
+	show_ullong_with_suffix(buf, (unsigned long long) *x, 1024);
+}
+
+/* _si, signed */
+void opt_show_intval_si(char buf[OPT_SHOW_LEN], const int *x)
+{
+	show_llong_with_suffix(buf, (long long) *x, 1000);
+}
+
+void opt_show_longval_si(char buf[OPT_SHOW_LEN], const long *x)
+{
+	show_llong_with_suffix(buf, (long long) *x, 1000);
+}
+
+void opt_show_longlongval_si(char buf[OPT_SHOW_LEN], const long long *x)
+{
+	show_llong_with_suffix(buf, *x, 1000);
+}
+
+/* _si, unsigned */
+void opt_show_uintval_si(char buf[OPT_SHOW_LEN], const unsigned int *x)
+{
+	show_ullong_with_suffix(buf, (unsigned long long) *x, 1000);
+}
+
+void opt_show_ulongval_si(char buf[OPT_SHOW_LEN], const unsigned long *x)
+{
+	show_ullong_with_suffix(buf, (unsigned long long) *x, 1000);
+}
+
+void opt_show_ulonglongval_si(char buf[OPT_SHOW_LEN], const unsigned long long *x)
+{
+	show_ullong_with_suffix(buf, (unsigned long long) *x, 1000);
+}
+
