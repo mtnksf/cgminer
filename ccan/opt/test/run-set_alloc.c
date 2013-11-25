@@ -1,16 +1,75 @@
 #include <ccan/tap/tap.h>
 #include <stdlib.h>
+
+/* Make sure we override these! */
+static void *no_malloc(size_t size)
+{
+	abort();
+}
+static void *no_realloc(void *p, size_t size)
+{
+	abort();
+}
+static void no_free(void *p)
+{
+	abort();
+}
+#define malloc no_malloc
+#define realloc no_realloc
+#define free no_free
+
 #include <ccan/opt/opt.c>
 #include <ccan/opt/usage.c>
 #include <ccan/opt/helpers.c>
 #include <ccan/opt/parse.c>
 #include "utils.h"
 
+#undef malloc
+#undef realloc
+#undef free
+
+static unsigned int alloc_count, realloc_count, free_count;
+static void *ptrs[100];
+
+static void **find_ptr(void *p)
+{
+	unsigned int i;
+
+	for (i = 0; i < 100; i++)
+		if (ptrs[i] == p)
+			return ptrs + i;
+	return NULL;
+}
+
+static void *allocfn(size_t size)
+{
+	alloc_count++;
+	return *find_ptr(NULL) = malloc(size);
+}
+
+static void *reallocfn(void *ptr, size_t size)
+{
+	realloc_count++;
+	if (!ptr)
+		alloc_count++;
+
+	return *find_ptr(ptr) = realloc(ptr, size);
+}
+
+static void freefn(void *ptr)
+{
+	free_count++;
+	free(ptr);
+	*find_ptr(ptr) = NULL;
+}
+
 int main(int argc, char *argv[])
 {
 	const char *myname = argv[0];
 
-	plan_tests(215);
+	plan_tests(220);
+
+	opt_set_alloc(allocfn, reallocfn, freefn);
 
 	/* Simple short arg.*/
 	opt_register_noarg("-a", test_noarg, NULL, "All");
@@ -281,6 +340,15 @@ int main(int argc, char *argv[])
 	ok1(strcmp(argv[3], "--") == 0);
 	ok1(strcmp(argv[4], "-a") == 0);
 	ok1(!argv[5]);
+
+	/* We should have tested each one at least once! */
+	ok1(realloc_count);
+	ok1(alloc_count);
+	ok1(free_count);
+
+	ok1(free_count < alloc_count);
+	reset_options();
+	ok1(free_count == alloc_count);
 
 	/* parse_args allocates argv */
 	free(argv);

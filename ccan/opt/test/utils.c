@@ -3,7 +3,6 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <ccan/opt/opt.h>
-#include <getopt.h>
 #include <string.h>
 #include <stdio.h>
 #include "utils.h"
@@ -49,6 +48,13 @@ void save_err_output(const char *fmt, ...)
 		err_output = p;
 }	
 
+void reset_options(void)
+{
+	opt_free_table();
+	free(err_output);
+	err_output = NULL;
+}
+
 static bool allocated = false;
 
 bool parse_args(int *argc, char ***argv, ...)
@@ -70,10 +76,31 @@ bool parse_args(int *argc, char ***argv, ...)
 
 	*argv = a;
 	allocated = true;
-	/* Re-set before parsing. */
-	optind = 0;
 
 	return opt_parse(argc, *argv, save_err_output);
+}
+
+bool parse_early_args(int *argc, char ***argv, ...)
+{
+	char **a;
+	va_list ap;
+
+	va_start(ap, argv);
+	*argc = 1;
+	a = malloc(sizeof(*a) * (*argc + 1));
+	a[0] = (*argv)[0];
+	while ((a[*argc] = va_arg(ap, char *)) != NULL) {
+		(*argc)++;
+		a = realloc(a, sizeof(*a) * (*argc + 1));
+	}
+
+	if (allocated)
+		free(*argv);
+
+	*argv = a;
+	allocated = true;
+
+	return opt_early_parse(*argc, *argv, save_err_output);
 }
 
 struct opt_table short_table[] = {

@@ -1,19 +1,9 @@
+/* Licensed under GPLv3+ - see LICENSE file for details */
 #include <ccan/opt/opt.h>
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <stdio.h>
-
-#ifndef WIN32
-	#include <err.h>
-#else
-#include <libgen.h>
-	#define errx(status, fmt, ...) { \
-			fprintf(stderr, fmt, __VA_ARGS__); \
-			fprintf(stderr, "\n"); \
-			exit(status); }
-#endif
-
 #include <assert.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -22,6 +12,9 @@
 struct opt_table *opt_table;
 unsigned int opt_count, opt_num_short, opt_num_short_arg, opt_num_long;
 const char *opt_argv0;
+struct opt_alloc opt_alloc = {
+	malloc, realloc, free
+};
 
 /* Returns string after first '-'. */
 static const char *first_name(const char *names, unsigned *len)
@@ -111,32 +104,40 @@ const char *next_sopt(const char *p, unsigned *i)
 	return p;
 }
 
+/* Avoids dependency on err.h or ccan/err */
+#ifndef failmsg
+#define failmsg(fmt, ...) \
+	do { fprintf(stderr, fmt, __VA_ARGS__); exit(1); } while(0)
+#endif
+
 static void check_opt(const struct opt_table *entry)
 {
 	const char *p;
 	unsigned len;
 
-	if (entry->type != OPT_HASARG && entry->type != OPT_NOARG)
-		errx(1, "Option %s: unknown entry type %u",
-		     entry->names, entry->type);
+	if (entry->type != OPT_HASARG && entry->type != OPT_NOARG
+	    && entry->type != (OPT_EARLY|OPT_HASARG)
+	    && entry->type != (OPT_EARLY|OPT_NOARG))
+		failmsg("Option %s: unknown entry type %u",
+			entry->names, entry->type);
 
 	if (!entry->desc)
-		errx(1, "Option %s: description cannot be NULL", entry->names);
+		failmsg("Option %s: description cannot be NULL", entry->names);
 
 
 	if (entry->names[0] != '-')
-		errx(1, "Option %s: does not begin with '-'", entry->names);
+		failmsg("Option %s: does not begin with '-'", entry->names);
 
 	for (p = first_name(entry->names, &len); p; p = next_name(p, &len)) {
 		if (*p == '-') {
 			if (len == 1)
-				errx(1, "Option %s: invalid long option '--'",
-				     entry->names);
+				failmsg("Option %s: invalid long option '--'",
+					entry->names);
 			opt_num_long++;
 		} else {
 			if (len != 1)
-				errx(1, "Option %s: invalid short option"
-				     " '%.*s'", entry->names, len+1, p-1);
+				failmsg("Option %s: invalid short option"
+					" '%.*s'", entry->names, len+1, p-1);
 			opt_num_short++;
 			if (entry->type == OPT_HASARG)
 				opt_num_short_arg++;
@@ -144,15 +145,16 @@ static void check_opt(const struct opt_table *entry)
 		/* Don't document args unless there are some. */
 		if (entry->type == OPT_NOARG) {
 			if (p[len] == ' ' || p[len] == '=')
-				errx(1, "Option %s: does not take arguments"
-				     " '%s'", entry->names, p+len+1);
+				failmsg("Option %s: does not take arguments"
+					" '%s'", entry->names, p+len+1);
 		}
 	}
 }
 
 static void add_opt(const struct opt_table *entry)
 {
-	opt_table = realloc(opt_table, sizeof(opt_table[0]) * (opt_count+1));
+	opt_table = opt_alloc.realloc(opt_table,
+				      sizeof(opt_table[0]) * (opt_count+1));
 	opt_table[opt_count++] = *entry;
 }
 
@@ -201,20 +203,32 @@ bool opt_parse(int *argc, char *argv[], void (*errlog)(const char *fmt, ...))
 {
 	int ret;
 	unsigned offset = 0;
-	
-	#ifdef WIN32
-	char *original_argv0 = argv[0];
-	argv[0] = (char*)basename(argv[0]);
-	#endif
 
 	/* This helps opt_usage. */
 	opt_argv0 = argv[0];
 
-	while ((ret = parse_one(argc, argv, &offset, errlog)) == 1);
-	
-	#ifdef WIN32
-	argv[0] = original_argv0;
-	#endif
+	while ((ret = parse_one(argc, argv, 0, &offset, errlog)) == 1);
+
+	/* parse_one returns 0 on finish, -1 on error */
+	return (ret == 0);
+}
+
+bool opt_early_parse(int argc, char *argv[],
+		     void (*errlog)(const char *fmt, ...))
+{
+	int ret;
+	unsigned off = 0;
+	char **tmpargv = opt_alloc.alloc(sizeof(argv[0]) * (argc + 1));
+
+	/* We could avoid a copy and skip instead, but this is simple. */
+	memcpy(tmpargv, argv, sizeof(argv[0]) * (argc + 1));
+
+	/* This helps opt_usage. */
+	opt_argv0 = argv[0];
+
+	while ((ret = parse_one(&argc, tmpargv, OPT_EARLY, &off, errlog)) == 1);
+
+	opt_alloc.free(tmpargv);
 
 	/* parse_one returns 0 on finish, -1 on error */
 	return (ret == 0);
@@ -222,8 +236,9 @@ bool opt_parse(int *argc, char *argv[], void (*errlog)(const char *fmt, ...))
 
 void opt_free_table(void)
 {
-	free(opt_table);
-	opt_table=0;
+	opt_alloc.free(opt_table);
+	opt_table = NULL;
+	opt_count = opt_num_short = opt_num_short_arg = opt_num_long = 0;
 }
 
 void opt_log_stderr(const char *fmt, ...)
@@ -249,7 +264,16 @@ void opt_log_stderr_exit(const char *fmt, ...)
 
 char *opt_invalid_argument(const char *arg)
 {
-	char *str = malloc(sizeof("Invalid argument '%s'") + strlen(arg));
+	char *str = opt_alloc.alloc(sizeof("Invalid argument '%s'") + strlen(arg));
 	sprintf(str, "Invalid argument '%s'", arg);
 	return str;
+}
+
+void opt_set_alloc(void *(*allocfn)(size_t size),
+		   void *(*reallocfn)(void *ptr, size_t size),
+		   void (*freefn)(void *ptr))
+{
+	opt_alloc.alloc = allocfn;
+	opt_alloc.realloc = reallocfn;
+	opt_alloc.free = freefn;
 }

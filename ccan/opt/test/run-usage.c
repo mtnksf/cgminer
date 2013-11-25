@@ -4,6 +4,15 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include "utils.h"
+
+/* Ensure width is sane. */
+static const char *getenv_override(const char *name)
+{
+	return "100";
+}
+
+#define getenv getenv_override
+
 #include <ccan/opt/opt.c>
 #include <ccan/opt/usage.c>
 #include <ccan/opt/helpers.c>
@@ -12,13 +21,6 @@
 static char *my_cb(void *p)
 {
 	return NULL;
-}
-
-static void reset_options(void)
-{
-	free(opt_table);
-	opt_table = NULL;
-	opt_count = opt_num_short = opt_num_short_arg = opt_num_long = 0;
 }
 
 /* Test helpers. */
