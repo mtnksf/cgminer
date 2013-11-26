@@ -1,4 +1,3 @@
-/* Licensed under GPLv3+ - see LICENSE file for details */
 /* Actual code to parse commandline. */
 #include <ccan/opt/opt.h>
 #include <string.h>
@@ -29,12 +28,12 @@ static void consume_option(int *argc, char *argv[], unsigned optnum)
 }
 
 /* Returns 1 if argument consumed, 0 if all done, -1 on error. */
-int parse_one(int *argc, char *argv[], enum opt_type is_early, unsigned *offset,
+int parse_one(int *argc, char *argv[], unsigned *offset,
 	      void (*errlog)(const char *fmt, ...))
 {
 	unsigned i, arg, len;
 	const char *o, *optarg = NULL;
-	char *problem = NULL;
+	char *problem;
 
 	if (getenv("POSIXLY_CORRECT")) {
 		/* Don't find options after non-options. */
@@ -91,12 +90,11 @@ int parse_one(int *argc, char *argv[], enum opt_type is_early, unsigned *offset,
 		len = 2;
 	}
 
-	if ((opt_table[i].type & ~OPT_EARLY) == OPT_NOARG) {
+	if (opt_table[i].type == OPT_NOARG) {
 		if (optarg)
 			return parse_err(errlog, argv[0], o, len,
 					 "doesn't allow an argument");
-		if ((opt_table[i].type & OPT_EARLY) == is_early)
-			problem = opt_table[i].cb(opt_table[i].u.arg);
+		problem = opt_table[i].cb(opt_table[i].u.arg);
 	} else {
 		if (!optarg) {
 			/* Swallow any short options as optarg, eg -afile */
@@ -109,14 +107,12 @@ int parse_one(int *argc, char *argv[], enum opt_type is_early, unsigned *offset,
 		if (!optarg)
 			return parse_err(errlog, argv[0], o, len,
 					 "requires an argument");
-		if ((opt_table[i].type & OPT_EARLY) == is_early)
-			problem = opt_table[i].cb_arg(optarg,
-						      opt_table[i].u.arg);
+		problem = opt_table[i].cb_arg(optarg, opt_table[i].u.arg);
 	}
 
 	if (problem) {
 		parse_err(errlog, argv[0], o, len, problem);
-		opt_alloc.free(problem);
+		free(problem);
 		return -1;
 	}
 

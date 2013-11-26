@@ -7,9 +7,6 @@
  *
  * Simple but powerful command line parsing.
  *
- * See Also:
- *	ccan/autodata
- *
  * Example:
  * #include <ccan/opt/opt.h>
  * #include <stdio.h>
@@ -52,7 +49,7 @@
  * 	return 0;
  * }
  *
- * License: GPL (v3 or any later version)
+ * License: GPL (2 or any later version)
  * Author: Rusty Russell <rusty@rustcorp.com.au>
  */
 int main(int argc, char *argv[])
@@ -61,9 +58,8 @@ int main(int argc, char *argv[])
 		return 1;
 
 	if (strcmp(argv[1], "depends") == 0) {
-		printf("ccan/cast\n");
-		printf("ccan/compiler\n");
 		printf("ccan/typesafe_cb\n");
+		printf("ccan/compiler\n");
 		return 0;
 	}
 

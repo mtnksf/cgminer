@@ -1,4 +1,3 @@
-/* Licensed under GPLv3+ - see LICENSE file for details */
 #ifndef CCAN_OPT_H
 #define CCAN_OPT_H
 #include <ccan/compiler/compiler.h>
@@ -21,7 +20,7 @@ struct opt_table;
  *
  * If the @cb returns non-NULL, opt_parse() will stop parsing, use the
  * returned string to form an error message for errlog(), free() the
- * string (or see opt_set_alloc) and return false.
+ * string and return false.
  *
  * Any number of equivalent short or long options can be listed in @names,
  * separated by '|'.  Short options are a single hyphen followed by a single
@@ -31,10 +30,10 @@ struct opt_table;
  *	OPT_WITH_ARG()
  */
 #define OPT_WITHOUT_ARG(names, cb, arg, desc)	\
-	{ (names), OPT_CB_NOARG((cb), 0, (arg)), { (arg) }, (desc) }
+	{ (names), OPT_CB_NOARG((cb), (arg)), { (arg) }, (desc) }
 
 /**
- * OPT_WITH_ARG() - macro for initializing an opt_table entry (with arg)
+ * OPT_WITH_ARG() - macro for initializing long and short option (with arg)
  * @names: the option names eg. "--foo=<arg>", "-f" or "-f|--foo <arg>".
  * @cb: the callback when the option is found (along with <arg>).
  * @show: the callback to print the value in get_usage (or NULL)
@@ -60,13 +59,13 @@ struct opt_table;
  *
  * If the @cb returns non-NULL, opt_parse() will stop parsing, use the
  * returned string to form an error message for errlog(), free() the
- * string (or see opt_set_alloc) and return false.
+ * string and return false.
  *
  * See Also:
  *	OPT_WITHOUT_ARG()
  */
 #define OPT_WITH_ARG(name, cb, show, arg, desc)	\
-	{ (name), OPT_CB_ARG((cb), 0, (show), (arg)), { (arg) }, (desc) }
+	{ (name), OPT_CB_ARG((cb), (show), (arg)), { (arg) }, (desc) }
 
 /**
  * OPT_SUBTABLE() - macro for including another table inside a table.
@@ -77,39 +76,6 @@ struct opt_table;
 	{ (const char *)(table), OPT_SUBTABLE,				\
 	  sizeof(_check_is_entry(table)) ? NULL : NULL, NULL, NULL,	\
 	  { NULL }, (desc) }
-
-/**
- * OPT_EARLY_WITHOUT_ARG() - macro for a early opt_table entry (without arg)
- * @names: the names of the option eg. "--foo", "-f" or "--foo|-f|--foobar".
- * @cb: the callback when the option is found.
- * @arg: the argument to hand to @cb.
- * @desc: the description for opt_usage(), or opt_hidden.
- *
- * This is the same as OPT_WITHOUT_ARG, but for opt_early_parse() instead of
- * opt_parse().
- *
- * See Also:
- *	OPT_EARLY_WITH_ARG(), opt_early_parse()
- */
-#define OPT_EARLY_WITHOUT_ARG(names, cb, arg, desc)	\
-	{ (names), OPT_CB_NOARG((cb), OPT_EARLY, (arg)), { (arg) }, (desc) }
-
-/**
- * OPT_EARLY_WITH_ARG() - macro for an early opt_table entry (with arg)
- * @names: the option names eg. "--foo=<arg>", "-f" or "-f|--foo <arg>".
- * @cb: the callback when the option is found (along with <arg>).
- * @show: the callback to print the value in get_usage (or NULL)
- * @arg: the argument to hand to @cb and @show
- * @desc: the description for opt_usage(), or opt_hidden.
- *
- * This is the same as OPT_WITH_ARG, but for opt_early_parse() instead of
- * opt_parse().
- *
- * See Also:
- *	OPT_EARLY_WITHOUT_ARG(), opt_early_parse()
- */
-#define OPT_EARLY_WITH_ARG(name, cb, show, arg, desc)	\
-	{ (name), OPT_CB_ARG((cb), OPT_EARLY, (show), (arg)), { (arg) }, (desc) }
 
 /**
  * OPT_ENDTABLE - macro to create final entry in table.
@@ -159,10 +125,10 @@ void opt_register_table(const struct opt_table *table, const char *desc);
  *
  * If the @cb returns non-NULL, opt_parse() will stop parsing, use the
  * returned string to form an error message for errlog(), free() the
- * string (or see opt_set_alloc) and return false.
+ * string and return false.
  */
 #define opt_register_noarg(names, cb, arg, desc)			\
-	_opt_register((names), OPT_CB_NOARG((cb), 0, (arg)), (arg), (desc))
+	_opt_register((names), OPT_CB_NOARG((cb), (arg)), (arg), (desc))
 
 /**
  * opt_register_arg - register an option with an arguments
@@ -180,9 +146,8 @@ void opt_register_table(const struct opt_table *table, const char *desc);
  * where "type" is the type of the @arg argument.  The first argument to the
  * @cb is the argument found on the commandline.
  *
- * If the @cb returns non-NULL, opt_parse() will stop parsing, use the
- * returned string to form an error message for errlog(), free() the
- * string (or see opt_set_alloc) and return false.
+ * At least one of @longopt and @shortopt must be non-zero.  If the
+ * @cb returns false, opt_parse() will stop parsing and return false.
  *
  * Example:
  * static char *explode(const char *optarg, void *unused)
@@ -193,40 +158,7 @@ void opt_register_table(const struct opt_table *table, const char *desc);
  *	opt_register_arg("--explode|--boom", explode, NULL, NULL, opt_hidden);
  */
 #define opt_register_arg(names, cb, show, arg, desc)			\
-	_opt_register((names), OPT_CB_ARG((cb),0,(show), (arg)), (arg), (desc))
-
-/**
- * opt_register_early_noarg - register an early option with no arguments
- * @names: the names of the option eg. "--foo", "-f" or "--foo|-f|--foobar".
- * @cb: the callback when the option is found.
- * @arg: the argument to hand to @cb.
- * @desc: the verbose description of the option (for opt_usage()), or NULL.
- *
- * This is the same as opt_register_noarg(), but for opt_early_parse().
- *
- * See Also:
- *	opt_register_early_arg(), opt_early_parse()
- */
-#define opt_register_early_noarg(names, cb, arg, desc)			\
-	_opt_register((names), OPT_CB_NOARG((cb), OPT_EARLY, (arg)),	\
-		      (arg), (desc))
-
-/**
- * opt_register_early_arg - register an early option with an arguments
- * @names: the names of the option eg. "--foo", "-f" or "--foo|-f|--foobar".
- * @cb: the callback when the option is found.
- * @show: the callback to print the value in get_usage (or NULL)
- * @arg: the argument to hand to @cb.
- * @desc: the verbose description of the option (for opt_usage()), or NULL.
- *
- * This is the same as opt_register_arg(), but for opt_early_parse().
- *
- * See Also:
- *	opt_register_early_noarg(), opt_early_parse()
- */
-#define opt_register_early_arg(names, cb, show, arg, desc)		\
-	_opt_register((names), OPT_CB_ARG((cb), OPT_EARLY, (show),(arg)), \
-		      (arg), (desc))
+	_opt_register((names), OPT_CB_ARG((cb), (show), (arg)), (arg), (desc))
 
 /**
  * opt_parse - parse arguments.
@@ -235,16 +167,12 @@ void opt_register_table(const struct opt_table *table, const char *desc);
  * @errlog: the function to print errors
  *
  * This iterates through the command line and calls callbacks registered with
- * opt_register_arg()/opt_register_noarg() or OPT_WITHOUT_ARG/OPT_WITH_ARG
- * entries in tables registered with opt_register_table().  As this occurs
- * each option is removed from argc and argv.
+ * opt_register_table()/opt_register_arg()/opt_register_noarg().  If there
+ * are unknown options, missing arguments or a callback returns false, then
+ * an error message is printed and false is returned.
  *
- * If there are unknown options, missing arguments or a callback
- * returns false, then an error message is printed and false is
- * returned: the erroneous option is not removed.
- *
- * On success, argc and argv will contain only the non-option
- * elements, and true is returned.
+ * On success, argc and argv are adjusted so only the non-option elements
+ * remain, and true is returned.
  *
  * Example:
  *	if (!opt_parse(&argc, argv, opt_log_stderr)) {
@@ -253,61 +181,17 @@ void opt_register_table(const struct opt_table *table, const char *desc);
  *	}
  *
  * See Also:
- *	opt_log_stderr, opt_log_stderr_exit, opt_early_parse()
+ *	opt_log_stderr, opt_log_stderr_exit
  */
 bool opt_parse(int *argc, char *argv[], void (*errlog)(const char *fmt, ...));
 
 /**
- * opt_early_parse - parse early arguments.
- * @argc: argc
- * @argv: argv array.
- * @errlog: the function to print errors
+ * opt_free_table - free the table.
  *
- * There are times when you want to parse some arguments before any other
- * arguments; this is especially important for debugging flags (eg. --verbose)
- * when you have complicated callbacks in option processing.
- *
- * You can use opt_early_parse() to only parse options registered with
- * opt_register_earlyarg()/opt_register_early_noarg() or
- * OPT_EARLY_WITHOUT_ARG/OPT_EARLY_WITH_ARG entries in tables registered with
- * opt_register_table().
- *
- * Note that unlike opt_parse(), argc and argv are not altered.
- *
- * Example:
- *	if (!opt_early_parse(argc, argv, opt_log_stderr)) {
- *		printf("You screwed up, aborting!\n");
- *		exit(1);
- *	}
- *
- * See Also:
- *	opt_parse()
- */
-bool opt_early_parse(int argc, char *argv[],
-		     void (*errlog)(const char *fmt, ...));
-
-/**
- * opt_free_table - reset the opt library.
- *
- * This frees the internal memory and returns counters to zero.  Call
- * this as the last opt function to avoid memory leaks.  You can also
- * use this function to reset option handling to its initial state (no
- * options registered).
+ * This frees the internal memory. Call this as the last
+ * opt function.
  */
 void opt_free_table(void);
-
-/**
- * opt_set_alloc - set alloc/realloc/free function for opt to use.
- * @allocfn: allocator function
- * @reallocfn: reallocator function, ptr may be NULL, size never 0.
- * @freefn: free function
- *
- * By default opt uses malloc/realloc/free, and simply crashes if they fail.
- * You can set your own variants here.
- */
-void opt_set_alloc(void *(*allocfn)(size_t size),
-		   void *(*reallocfn)(void *ptr, size_t size),
-		   void (*freefn)(void *ptr));
 
 /**
  * opt_log_stderr - print message to stderr.
@@ -388,47 +272,14 @@ void opt_show_charp(char buf[OPT_SHOW_LEN], char *const *p);
 /* Set an integer value, various forms.  Sets to 1 on arg == NULL. */
 char *opt_set_intval(const char *arg, int *i);
 void opt_show_intval(char buf[OPT_SHOW_LEN], const int *i);
+char *opt_set_floatval(const char *arg, float *f);
+void opt_show_floatval(char buf[OPT_SHOW_LEN], const float *f);
 char *opt_set_uintval(const char *arg, unsigned int *ui);
 void opt_show_uintval(char buf[OPT_SHOW_LEN], const unsigned int *ui);
 char *opt_set_longval(const char *arg, long *l);
 void opt_show_longval(char buf[OPT_SHOW_LEN], const long *l);
 char *opt_set_ulongval(const char *arg, unsigned long *ul);
 void opt_show_ulongval(char buf[OPT_SHOW_LEN], const unsigned long *ul);
-
-/* the following setting functions accept k, M, G, T, P, or E suffixes, which
-   multiplies the numeric value by the corresponding power of 1000 or 1024
-   (for the _si and _bi versions, respectively).
- */
-char *opt_set_intval_bi(const char *arg, int *i);
-char *opt_set_intval_si(const char *arg, int *i);
-char *opt_set_uintval_bi(const char *arg, unsigned int *u);
-char *opt_set_uintval_si(const char *arg, unsigned int *u);
-char *opt_set_longval_bi(const char *arg, long *l);
-char *opt_set_longval_si(const char *arg, long *l);
-char *opt_set_ulongval_bi(const char *arg, unsigned long *ul);
-char *opt_set_ulongval_si(const char *arg, unsigned long *ul);
-char *opt_set_longlongval_bi(const char *arg, long long *ll);
-char *opt_set_longlongval_si(const char *arg, long long *ll);
-char *opt_set_ulonglongval_bi(const char *arg, unsigned long long *ll);
-char *opt_set_ulonglongval_si(const char *arg, unsigned long long *ll);
-
-
-void opt_show_intval_bi(char buf[OPT_SHOW_LEN], const int *x);
-void opt_show_longval_bi(char buf[OPT_SHOW_LEN], const long *x);
-void opt_show_longlongval_bi(char buf[OPT_SHOW_LEN], const long long *x);
-void opt_show_uintval_bi(char buf[OPT_SHOW_LEN], const unsigned int *x);
-void opt_show_ulongval_bi(char buf[OPT_SHOW_LEN], const unsigned long *x);
-void opt_show_ulonglongval_bi(char buf[OPT_SHOW_LEN], const unsigned long long *x);
-
-void opt_show_intval_si(char buf[OPT_SHOW_LEN], const int *x);
-void opt_show_longval_si(char buf[OPT_SHOW_LEN], const long *x);
-void opt_show_longlongval_si(char buf[OPT_SHOW_LEN], const long long *x);
-void opt_show_uintval_si(char buf[OPT_SHOW_LEN], const unsigned int *x);
-void opt_show_ulongval_si(char buf[OPT_SHOW_LEN], const unsigned long *x);
-void opt_show_ulonglongval_si(char buf[OPT_SHOW_LEN], const unsigned long long *x);
-
-
-
 
 /* Increment. */
 char *opt_inc_intval(int *i);
@@ -446,8 +297,7 @@ enum opt_type {
 	OPT_NOARG = 1,		/* -f|--foo */
 	OPT_HASARG = 2,		/* -f arg|--foo=arg|--foo arg */
 	OPT_SUBTABLE = 4,	/* Actually, longopt points to a subtable... */
-	OPT_EARLY = 8,		/* Parse this from opt_early_parse() only. */
-	OPT_END = 16,		/* End of the table. */
+	OPT_END = 8,		/* End of the table. */
 };
 
 struct opt_table {
@@ -465,8 +315,8 @@ struct opt_table {
 };
 
 /* Resolves to the four parameters for non-arg callbacks. */
-#define OPT_CB_NOARG(cb, pre, arg)			\
-	OPT_NOARG|(pre),				\
+#define OPT_CB_NOARG(cb, arg)				\
+	OPT_NOARG,					\
 	typesafe_cb_cast3(char *(*)(void *),	\
 			  char *(*)(typeof(*(arg))*),	\
 			  char *(*)(const typeof(*(arg))*),	\
@@ -474,8 +324,8 @@ struct opt_table {
 	NULL, NULL
 
 /* Resolves to the four parameters for arg callbacks. */
-#define OPT_CB_ARG(cb, pre, show, arg)					\
-	OPT_HASARG|(pre), NULL,						\
+#define OPT_CB_ARG(cb, show, arg)					\
+	OPT_HASARG, NULL,						\
 	typesafe_cb_cast3(char *(*)(const char *,void *),	\
 			  char *(*)(const char *, typeof(*(arg))*),	\
 			  char *(*)(const char *, const typeof(*(arg))*), \

@@ -19,10 +19,20 @@ static int saved_fprintf(FILE *ignored, const char *fmt, ...);
 #define vfprintf(f, fmt, ap) saved_vprintf(fmt, ap)
 static int saved_vprintf(const char *fmt, va_list ap);
 
+#define malloc(size) saved_malloc(size)
+static void *saved_malloc(size_t size);
+
 #include <ccan/opt/helpers.c>
 #include <ccan/opt/opt.c>
 #include <ccan/opt/usage.c>
 #include <ccan/opt/parse.c>
+
+static void reset_options(void)
+{
+	free(opt_table);
+	opt_table = NULL;
+	opt_count = opt_num_short = opt_num_short_arg = opt_num_long = 0;
+}
 
 static char *output = NULL;
 
@@ -49,7 +59,7 @@ static int saved_printf(const char *fmt, ...)
 	ret = saved_vprintf(fmt, ap);
 	va_end(ap);
 	return ret;
-}
+}	
 
 static int saved_fprintf(FILE *ignored, const char *fmt, ...)
 {
@@ -60,24 +70,19 @@ static int saved_fprintf(FILE *ignored, const char *fmt, ...)
 	ret = saved_vprintf(fmt, ap);
 	va_end(ap);
 	return ret;
-}
+}	
 
-static void set_args(int *argc, char ***argv, ...)
+#undef malloc
+static void *last_allocation;
+static void *saved_malloc(size_t size)
 {
-	va_list ap;
-	*argv = malloc(sizeof(**argv) * 20);
-
-	va_start(ap, argv);
-	for (*argc = 0;
-	     ((*argv)[*argc] = va_arg(ap, char*)) != NULL;
-	     (*argc)++);
-	va_end(ap);
+	return last_allocation = malloc(size);
 }
 
 /* Test helpers. */
 int main(int argc, char *argv[])
 {
-	plan_tests(454);
+	plan_tests(100);
 
 	/* opt_set_bool */
 	{
@@ -122,7 +127,7 @@ int main(int argc, char *argv[])
 	}
 	/* opt_set_charp */
 	{
-		char *arg = cast_const(char *, "wrong");
+		char *arg = (char *)"wrong";
 		reset_options();
 		opt_register_arg("-a", opt_set_charp, NULL, &arg, "All");
 		ok1(parse_args(&argc, &argv, "-a", "string", NULL));
@@ -206,765 +211,6 @@ int main(int argc, char *argv[])
 		else
 			fail("FIXME: Handle other long sizes");
 	}
-
-	{
-		const long long k = 1024;
-		const long long M = k * k;
-		const long long G = k * k * k;
-		const long long T = k * k * k * k;
-		const long long P = k * k * k * k * k;
-		const long long E = k * k * k * k * k * k;
-
-		/* opt_set_uintval_bi */
-		{
-			unsigned int arg = 1000;
-			reset_options();
-			opt_register_arg("-a", opt_set_uintval_bi, NULL,
-					 &arg, "All");
-			ok1(parse_args(&argc, &argv, "-a", "9999", NULL));
-			ok1(arg == 9999);
-			ok1(!parse_args(&argc, &argv, "-a", "-9999", NULL));
-			ok1(parse_args(&argc, &argv, "-a", "0", NULL));
-			ok1(arg == 0);
-			arg = 1;
-			ok1(parse_args(&argc, &argv, "-a", "0k", NULL));
-			ok1(arg == 0);
-			arg = 1;
-			ok1(parse_args(&argc, &argv, "-a", "0P", NULL));
-			ok1(arg == 0);
-			ok1(!parse_args(&argc, &argv, "-a", "3Q", NULL));
-			ok1(parse_args(&argc, &argv, "-a", "30k", NULL));
-			ok1(arg == 30 * k);
-			ok1(!parse_args(&argc, &argv, "-a", "-1K", NULL));
-	}
-
-		/* opt_set_intval_bi */
-		{
-			int arg = 1000;
-			reset_options();
-			opt_register_arg("-a", opt_set_intval_bi, NULL,
-					 &arg, "All");
-			ok1(parse_args(&argc, &argv, "-a", "9999", NULL));
-			ok1(arg == 9999);
-			ok1(parse_args(&argc, &argv, "-a", "-9999", NULL));
-			ok1(arg == -9999);
-			ok1(parse_args(&argc, &argv, "-a", "0", NULL));
-			ok1(arg == 0);
-			arg = 1;
-			ok1(parse_args(&argc, &argv, "-a", "0k", NULL));
-			ok1(arg == 0);
-			arg = 1;
-			ok1(parse_args(&argc, &argv, "-a", "0P", NULL));
-			ok1(arg == 0);
-			ok1(!parse_args(&argc, &argv, "-a", "3Q", NULL));
-			ok1(parse_args(&argc, &argv, "-a", "30k", NULL));
-			ok1(arg == 30 * k);
-			ok1(parse_args(&argc, &argv, "-a", "-1K", NULL));
-			ok1(arg == -1 * k);
-		}
-
-
-		/* opt_set_ulongval_bi */
-		{
-			unsigned long int arg = 1000;
-
-			reset_options();
-			opt_register_arg("-a", opt_set_ulongval_bi, NULL,
-					 &arg, "All");
-			ok1(parse_args(&argc, &argv, "-a", "9999", NULL));
-			ok1(arg == 9999);
-			ok1(!parse_args(&argc, &argv, "-a", "-9999", NULL));
-			ok1(parse_args(&argc, &argv, "-a", "0", NULL));
-			ok1(arg == 0);
-			arg = 1;
-			ok1(parse_args(&argc, &argv, "-a", "0P", NULL));
-			ok1(arg == 0);
-			ok1(!parse_args(&argc, &argv, "-a", "1Q", NULL));
-			ok1(parse_args(&argc, &argv, "-a", "100k", NULL));
-			ok1(arg == 100 * k);
-			ok1(parse_args(&argc, &argv, "-a", "1K", NULL));
-			ok1(arg == 1 * k);
-			ok1(parse_args(&argc, &argv, "-a", "99M", NULL));
-			ok1(arg == 99 * M);
-			/*note, 2999M > max signed 32 bit long, 1 << 31*/
-			ok1(parse_args(&argc, &argv, "-a", "2999m", NULL));
-			ok1(arg == 2999 * M);
-			ok1(parse_args(&argc, &argv, "-a", "1G", NULL));
-			ok1(arg == 1 * G);
-			ok1(!parse_args(&argc, &argv, "-a", "-1G", NULL));
-			if (sizeof(long) == 4){
-				ok1(!parse_args(&argc, &argv, "-a", "4294967296", NULL));
-				ok1(!parse_args(&argc, &argv, "-a", "1T", NULL));
-				ok1(!parse_args(&argc, &argv, "-a", "1E", NULL));
-			}
-			else if (sizeof(long) == 8){
-				ok1(!parse_args(&argc, &argv, "-a",
-						"18446744073709551616", NULL));
-				ok1(!parse_args(&argc, &argv, "-a", "8E", NULL));
-				ok1(parse_args(&argc, &argv, "-a", "3E", NULL));
-			}
-			else
-				fail("FIXME: Handle other long sizes");
-		}
-
-		/* opt_set_longval_bi */
-		{
-			long int arg = 1000;
-
-			reset_options();
-			opt_register_arg("-a", opt_set_longval_bi, NULL,
-					 &arg, "All");
-			ok1(parse_args(&argc, &argv, "-a", "9999", NULL));
-			ok1(arg == 9999);
-			ok1(parse_args(&argc, &argv, "-a", "-9999", NULL));
-			ok1(arg == -9999);
-			ok1(parse_args(&argc, &argv, "-a", "0P", NULL));
-			ok1(arg == 0);
-			ok1(!parse_args(&argc, &argv, "-a", "100crap", NULL));
-			ok1(!parse_args(&argc, &argv, "-a", "1Q", NULL));
-			ok1(parse_args(&argc, &argv, "-a", "100k", NULL));
-			ok1(arg == 100 * k);
-			ok1(parse_args(&argc, &argv, "-a", "-100k", NULL));
-			ok1(arg == -100 * k);
-			ok1(parse_args(&argc, &argv, "-a", "1K", NULL));
-			ok1(arg == 1 * k);
-			ok1(parse_args(&argc, &argv, "-a", "99M", NULL));
-			ok1(arg == 99 * M);
-			ok1(parse_args(&argc, &argv, "-a", "1G", NULL));
-			ok1(arg == 1 * G);
-			ok1(parse_args(&argc, &argv, "-a", "-1G", NULL));
-			ok1(arg == -1 * G);
-			if (sizeof(long) == 4){
-				ok1(!parse_args(&argc, &argv, "-a", "2147483648", NULL));
-				ok1(!parse_args(&argc, &argv, "-a", "2G", NULL));
-				ok1(!parse_args(&argc, &argv, "-a", "2048m", NULL));
-				ok1(!parse_args(&argc, &argv, "-a", "1T", NULL));
-				ok1(!parse_args(&argc, &argv, "-a", "1E", NULL));
-			}
-			else if (sizeof(long) == 8){
-				ok1(!parse_args(&argc, &argv, "-a",
-						"9223372036854775808", NULL));
-				ok1(parse_args(&argc, &argv, "-a", "3E", NULL));
-				ok1(arg == 3 * E);
-				ok1(parse_args(&argc, &argv, "-a", "123T", NULL));
-				ok1(arg == 123 * T);
-			}
-			else
-				fail("FIXME: Handle other long sizes");
-		}
-
-
-		/* opt_set_longlongval_bi */
-		{
-			long long int arg = 1000;
-			reset_options();
-			opt_register_arg("-a", opt_set_longlongval_bi, NULL,
-					 &arg, "All");
-			ok1(parse_args(&argc, &argv, "-a", "9999", NULL));
-			ok1(arg == 9999);
-			ok1(parse_args(&argc, &argv, "-a", "-9999", NULL));
-			ok1(arg == -9999);
-			ok1(parse_args(&argc, &argv, "-a", "0P", NULL));
-			ok1(arg == 0);
-			ok1(!parse_args(&argc, &argv, "-a", "100crap", NULL));
-			ok1(!parse_args(&argc, &argv, "-a", "1Q", NULL));
-			ok1(!parse_args(&argc, &argv, "-a", "1kk", NULL));
-			ok1(parse_args(&argc, &argv, "-a", "100k", NULL));
-			ok1(arg == 100 * k);
-			ok1(parse_args(&argc, &argv, "-a", "-100k", NULL));
-			ok1(arg == -100 * k);
-			ok1(parse_args(&argc, &argv, "-a", "1K", NULL));
-			ok1(arg == 1 * k);
-			ok1(parse_args(&argc, &argv, "-a", "-333333M", NULL));
-			ok1(arg == -333333 * M);
-			ok1(parse_args(&argc, &argv, "-a", "1G", NULL));
-			ok1(arg == 1 * G);
-			ok1(parse_args(&argc, &argv, "-a", "1024t", NULL));
-			ok1(arg == 1024 * T);
-			ok1(parse_args(&argc, &argv, "-a", "123P", NULL));
-			ok1(arg == 123 * P);
-			ok1(parse_args(&argc, &argv, "-a", "-3E", NULL));
-			ok1(arg == -3 * E);
-
-			if (sizeof(long long) == 8){
-				ok1(!parse_args(&argc, &argv, "-a",
-						"9223372036854775808", NULL));
-				/*8E and 922337.. are both 1 << 63*/
-				ok1(!parse_args(&argc, &argv, "-a", "8E", NULL));
-			}
-			else
-				fail("FIXME: Handle other long long int"
-				     " sizes (specifically %zu bytes)",
-				     sizeof(long long));
-		}
-		/* opt_set_ulonglongval_bi */
-		{
-			unsigned long long int arg = 1000;
-			reset_options();
-			opt_register_arg("-a", opt_set_ulonglongval_bi, NULL,
-					 &arg, "All");
-			ok1(parse_args(&argc, &argv, "-a", "9999", NULL));
-			ok1(arg == 9999);
-			ok1(!parse_args(&argc, &argv, "-a", "-9999", NULL));
-			ok1(parse_args(&argc, &argv, "-a", "0", NULL));
-			ok1(arg == 0);
-			ok1(!parse_args(&argc, &argv, "-a", "1Q", NULL));
-			ok1(!parse_args(&argc, &argv, "-a", "1kk", NULL));
-			ok1(parse_args(&argc, &argv, "-a", "100G", NULL));
-			ok1(arg == 100 * G);
-			ok1(!parse_args(&argc, &argv, "-a", "-100G", NULL));
-			ok1(parse_args(&argc, &argv, "-a", "8191P", NULL));
-			ok1(arg == 8191 * P);
-		}
-
-		/* opt_show_intval_bi */
-		{
-			int i;
-			char buf[OPT_SHOW_LEN+2] = { 0 };
-			buf[OPT_SHOW_LEN] = '!';
-			i = -77;
-			opt_show_intval_bi(buf, &i);
-			ok1(strcmp(buf, "-77") == 0);
-			i = 0;
-			opt_show_intval_bi(buf, &i);
-			ok1(strcmp(buf, "0") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 77;
-			opt_show_intval_bi(buf, &i);
-			ok1(strcmp(buf, "77") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = -1234 * k;
-			opt_show_intval_bi(buf, &i);
-			ok1(strcmp(buf, "-1234k") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 500 * M;
-			opt_show_intval_bi(buf, &i);
-			ok1(strcmp(buf, "500M") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 1024 * M;
-			opt_show_intval_bi(buf, &i);
-			ok1(strcmp(buf, "1G") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-		}
-
-		/* opt_show_longval_bi */
-		{
-			long i;
-			char buf[OPT_SHOW_LEN+2] = { 0 };
-			buf[OPT_SHOW_LEN] = '!';
-			i = -77;
-			opt_show_longval_bi(buf, &i);
-			ok1(strcmp(buf, "-77") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 77;
-			opt_show_longval_bi(buf, &i);
-			ok1(strcmp(buf, "77") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = -1 * k;
-			opt_show_longval_bi(buf, &i);
-			ok1(strcmp(buf, "-1k") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 500 * M;
-			opt_show_longval_bi(buf, &i);
-			ok1(strcmp(buf, "500M") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 1024 * M;
-			opt_show_longval_bi(buf, &i);
-			ok1(strcmp(buf, "1G") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 0;
-			opt_show_longval_bi(buf, &i);
-			ok1(strcmp(buf, "0") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-		}
-
-		/* opt_show_llongval_bi */
-		{
-			long long i;
-			char buf[OPT_SHOW_LEN+2] = { 0 };
-			buf[OPT_SHOW_LEN] = '!';
-			i = -7777;
-			opt_show_longlongval_bi(buf, &i);
-			ok1(strcmp(buf, "-7777") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 7777;
-			opt_show_longlongval_bi(buf, &i);
-			ok1(strcmp(buf, "7777") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = -10240000 * k;
-			opt_show_longlongval_bi(buf, &i);
-			ok1(strcmp(buf, "-10000M") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 5 * P;
-			opt_show_longlongval_bi(buf, &i);
-			ok1(strcmp(buf, "5P") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 1024 * P;
-			opt_show_longlongval_bi(buf, &i);
-			ok1(strcmp(buf, "1E") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-		}
-
-		/* opt_show_uintval_bi */
-		{
-			unsigned int i;
-			char buf[OPT_SHOW_LEN+2] = { 0 };
-			buf[OPT_SHOW_LEN] = '!';
-			i = 77;
-			opt_show_uintval_bi(buf, &i);
-			ok1(strcmp(buf, "77") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 1234 * k;
-			opt_show_uintval_bi(buf, &i);
-			ok1(strcmp(buf, "1234k") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 500 * M;
-			opt_show_uintval_bi(buf, &i);
-			ok1(strcmp(buf, "500M") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 1024 * M;
-			opt_show_uintval_bi(buf, &i);
-			ok1(strcmp(buf, "1G") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-		}
-
-		/* opt_show_ulongval_bi */
-		{
-			unsigned long i;
-			char buf[OPT_SHOW_LEN+2] = { 0 };
-			buf[OPT_SHOW_LEN] = '!';
-			i = 77;
-			opt_show_ulongval_bi(buf, &i);
-			ok1(strcmp(buf, "77") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = k;
-			opt_show_ulongval_bi(buf, &i);
-			ok1(strcmp(buf, "1k") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 500 * M;
-			opt_show_ulongval_bi(buf, &i);
-			ok1(strcmp(buf, "500M") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 1024 * M;
-			opt_show_ulongval_bi(buf, &i);
-			ok1(strcmp(buf, "1G") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 0;
-			opt_show_ulongval_bi(buf, &i);
-			ok1(strcmp(buf, "0") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-		}
-
-		/* opt_show_ullongval_bi */
-		{
-			long long i;
-			char buf[OPT_SHOW_LEN+2] = { 0 };
-			buf[OPT_SHOW_LEN] = '!';
-			i = 7777;
-			opt_show_ulonglongval_bi(buf, (unsigned long long *)&i);
-			ok1(strcmp(buf, "7777") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 10240000 * k;
-			opt_show_ulonglongval_bi(buf, (unsigned long long *)&i);
-			ok1(strcmp(buf, "10000M") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 5 * P;
-			opt_show_ulonglongval_bi(buf, (unsigned long long *)&i);
-			ok1(strcmp(buf, "5P") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 1024 * P;
-			opt_show_ulonglongval_bi(buf, (unsigned long long *)&i);
-			ok1(strcmp(buf, "1E") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-		}
-	}
-
-	{
-		const long long k = 1000;
-		const long long M = k * k;
-		const long long G = k * k * k;
-		const long long T = k * k * k * k;
-		const long long P = k * k * k * k * k;
-		const long long E = k * k * k * k * k * k;
-
-		/* opt_set_uintval_si */
-		{
-			unsigned int arg = 1000;
-			reset_options();
-			opt_register_arg("-a", opt_set_uintval_si, NULL,
-					 &arg, "All");
-			ok1(parse_args(&argc, &argv, "-a", "9999", NULL));
-			ok1(arg == 9999);
-			ok1(!parse_args(&argc, &argv, "-a", "-9999", NULL));
-			ok1(parse_args(&argc, &argv, "-a", "0", NULL));
-			ok1(arg == 0);
-			arg = 1;
-			ok1(parse_args(&argc, &argv, "-a", "0k", NULL));
-			ok1(arg == 0);
-			arg = 1;
-			ok1(parse_args(&argc, &argv, "-a", "0P", NULL));
-			ok1(arg == 0);
-			ok1(!parse_args(&argc, &argv, "-a", "3Q", NULL));
-			ok1(parse_args(&argc, &argv, "-a", "30k", NULL));
-			ok1(arg == 30 * k);
-			ok1(!parse_args(&argc, &argv, "-a", "-1K", NULL));
-			if (sizeof(unsigned int) < 8)
-				ok1(!parse_args(&argc, &argv, "-a", "1E", NULL));
-			else
-				pass("can't test int truncation when int is so huge");
-	}
-
-		/* opt_set_intval_si */
-		{
-			int arg = 1000;
-			reset_options();
-			opt_register_arg("-a", opt_set_intval_si, NULL,
-					 &arg, "All");
-			ok1(parse_args(&argc, &argv, "-a", "9999", NULL));
-			ok1(arg == 9999);
-			ok1(parse_args(&argc, &argv, "-a", "-9999", NULL));
-			ok1(arg == -9999);
-			ok1(parse_args(&argc, &argv, "-a", "0", NULL));
-			ok1(arg == 0);
-			arg = 1;
-			ok1(parse_args(&argc, &argv, "-a", "0k", NULL));
-			ok1(arg == 0);
-			arg = 1;
-			ok1(parse_args(&argc, &argv, "-a", "0P", NULL));
-			ok1(arg == 0);
-			ok1(!parse_args(&argc, &argv, "-a", "", NULL));
-			ok1(!parse_args(&argc, &argv, "-a", "3Q", NULL));
-			ok1(parse_args(&argc, &argv, "-a", "30k", NULL));
-			ok1(arg == 30 * k);
-			ok1(parse_args(&argc, &argv, "-a", "-1K", NULL));
-			ok1(arg == -1 * k);
-			if (sizeof(int) < 8)
-				ok1(!parse_args(&argc, &argv, "-a", "1E", NULL));
-			else
-				pass("can't test int truncation when int is so huge");
-		}
-
-
-		/* opt_set_ulongval_si */
-		{
-			unsigned long int arg = 1000;
-
-			reset_options();
-			opt_register_arg("-a", opt_set_ulongval_si, NULL,
-					 &arg, "All");
-			ok1(parse_args(&argc, &argv, "-a", "9999", NULL));
-			ok1(arg == 9999);
-			ok1(!parse_args(&argc, &argv, "-a", "-9999", NULL));
-			ok1(parse_args(&argc, &argv, "-a", "0P", NULL));
-			ok1(arg == 0);
-			ok1(!parse_args(&argc, &argv, "-a", "100crap", NULL));
-			ok1(!parse_args(&argc, &argv, "-a", "1Q", NULL));
-			ok1(parse_args(&argc, &argv, "-a", "100k", NULL));
-			ok1(arg == 100 * k);
-			ok1(parse_args(&argc, &argv, "-a", "1K", NULL));
-			ok1(arg == 1 * k);
-			ok1(parse_args(&argc, &argv, "-a", "99M", NULL));
-			ok1(arg == 99 * M);
-			/*note, 2999M > max signed 32 bit long, 1 << 31*/
-			ok1(parse_args(&argc, &argv, "-a", "2999m", NULL));
-			ok1(arg == 2999 * M);
-			ok1(parse_args(&argc, &argv, "-a", "1G", NULL));
-			ok1(arg == 1 * G);
-			ok1(!parse_args(&argc, &argv, "-a", "-1G", NULL));
-			ok1(parse_args(&argc, &argv, "-a", "4G", NULL));
-			ok1(arg == 4000000000U);
-			if (sizeof(long) == 4){
-				ok1(!parse_args(&argc, &argv, "-a", "4294967296", NULL));
-				ok1(!parse_args(&argc, &argv, "-a", "4295M", NULL));
-				ok1(!parse_args(&argc, &argv, "-a", "1T", NULL));
-				ok1(!parse_args(&argc, &argv, "-a", "1E", NULL));
-			}
-			else if (sizeof(long)== 8){
-				ok1(!parse_args(&argc, &argv, "-a",
-						"18446744073709551616", NULL));
-				ok1(parse_args(&argc, &argv, "-a", "9E", NULL));
-				ok1(arg == 9000000000000000000ULL);
-				ok1(!parse_args(&argc, &argv, "-a", "19E", NULL));
-			}
-			else
-				fail("FIXME: Handle other long sizes");
-		}
-
-		/* opt_set_longval_si */
-		{
-			long int arg = 1000;
-
-			reset_options();
-			opt_register_arg("-a", opt_set_longval_si, NULL,
-					 &arg, "All");
-			ok1(parse_args(&argc, &argv, "-a", "9999", NULL));
-			ok1(arg == 9999);
-			ok1(parse_args(&argc, &argv, "-a", "-9999", NULL));
-			ok1(arg == -9999);
-			ok1(parse_args(&argc, &argv, "-a", "0P", NULL));
-			ok1(arg == 0);
-			ok1(!parse_args(&argc, &argv, "-a", "100crap", NULL));
-			ok1(!parse_args(&argc, &argv, "-a", "1Q", NULL));
-			ok1(parse_args(&argc, &argv, "-a", "100k", NULL));
-			ok1(arg == 100 * k);
-			ok1(parse_args(&argc, &argv, "-a", "-100k", NULL));
-			ok1(arg == -100 * k);
-			ok1(parse_args(&argc, &argv, "-a", "1K", NULL));
-			ok1(arg == 1 * k);
-			ok1(parse_args(&argc, &argv, "-a", "99M", NULL));
-			ok1(arg == 99 * M);
-			ok1(parse_args(&argc, &argv, "-a", "1G", NULL));
-			ok1(arg == 1 * G);
-			ok1(parse_args(&argc, &argv, "-a", "-1G", NULL));
-			ok1(arg == -1 * G);
-			if (sizeof(long) == 4){
-				ok1(!parse_args(&argc, &argv, "-a", "2147483648", NULL));
-				ok1(!parse_args(&argc, &argv, "-a", "4G", NULL));
-				ok1(!parse_args(&argc, &argv, "-a", "1T", NULL));
-				ok1(!parse_args(&argc, &argv, "-a", "1E", NULL));
-				ok1(parse_args(&argc, &argv, "-a", "1999m", NULL));
-				ok1(arg == 1999 * M);
-			}
-			else if (sizeof(long)== 8){
-				ok1(!parse_args(&argc, &argv, "-a",
-						"9223372036854775808", NULL));
-				ok1(!parse_args(&argc, &argv, "-a", "9224P", NULL));
-				ok1(parse_args(&argc, &argv, "-a", "9E", NULL));
-				ok1(arg == 9 * E);
-				ok1(parse_args(&argc, &argv, "-a", "123T", NULL));
-				ok1(arg == 123 * T);
-			}
-			else
-				fail("FIXME: Handle other long sizes");
-		}
-
-
-		/* opt_set_longlongval_si */
-		{
-			long long int arg = 1000;
-			reset_options();
-			opt_register_arg("-a", opt_set_longlongval_si, NULL,
-					 &arg, "All");
-			ok1(parse_args(&argc, &argv, "-a", "9999", NULL));
-			ok1(arg == 9999);
-			ok1(parse_args(&argc, &argv, "-a", "-9999", NULL));
-			ok1(arg == -9999);
-			ok1(parse_args(&argc, &argv, "-a", "0T", NULL));
-			ok1(arg == 0);
-			ok1(!parse_args(&argc, &argv, "-a", "100crap", NULL));
-			ok1(!parse_args(&argc, &argv, "-a", "1Q", NULL));
-			ok1(!parse_args(&argc, &argv, "-a", "1kk", NULL));
-			ok1(parse_args(&argc, &argv, "-a", "100k", NULL));
-			ok1(arg == 100 * k);
-			ok1(parse_args(&argc, &argv, "-a", "-100k", NULL));
-			ok1(arg == -100 * k);
-			ok1(parse_args(&argc, &argv, "-a", "1K", NULL));
-			ok1(arg == 1 * k);
-			ok1(parse_args(&argc, &argv, "-a", "-333333M", NULL));
-			ok1(arg == -333333 * M);
-			ok1(parse_args(&argc, &argv, "-a", "1G", NULL));
-			ok1(arg == 1 * G);
-			ok1(parse_args(&argc, &argv, "-a", "1024t", NULL));
-			ok1(arg == 1024 * T);
-			ok1(parse_args(&argc, &argv, "-a", "123P", NULL));
-			ok1(arg == 123 * P);
-			ok1(parse_args(&argc, &argv, "-a", "-3E", NULL));
-			ok1(arg == -3 * E);
-			ok1(parse_args(&argc, &argv, "-a", "8E", NULL));
-			if (sizeof(long long) == 8){
-				ok1(!parse_args(&argc, &argv, "-a",
-						"9223372036854775808", NULL));
-				ok1(!parse_args(&argc, &argv, "-a",
-						"10E", NULL));
-			}
-			else
-				fail("FIXME: Handle other long long int"
-				     " sizes (specifically %zu bytes)",
-				     sizeof(long long));
-
-		}
-		/* opt_set_ulonglongval_si */
-		{
-			unsigned long long int arg = 1000;
-			reset_options();
-			opt_register_arg("-a", opt_set_ulonglongval_si, NULL,
-					 &arg, "All");
-			ok1(parse_args(&argc, &argv, "-a", "9999", NULL));
-			ok1(arg == 9999);
-			ok1(!parse_args(&argc, &argv, "-a", "-9999", NULL));
-			ok1(parse_args(&argc, &argv, "-a", "0", NULL));
-			ok1(arg == 0);
-			ok1(!parse_args(&argc, &argv, "-a", "1Q", NULL));
-			ok1(!parse_args(&argc, &argv, "-a", "1kk", NULL));
-			ok1(parse_args(&argc, &argv, "-a", "100G", NULL));
-			ok1(arg == 100 * G);
-			ok1(!parse_args(&argc, &argv, "-a", "-100G", NULL));
-			ok1(parse_args(&argc, &argv, "-a", "8E", NULL));
-		}
-		/* opt_show_intval_si */
-		{
-			int i;
-			char buf[OPT_SHOW_LEN+2] = { 0 };
-			buf[OPT_SHOW_LEN] = '!';
-			i = -77;
-			opt_show_intval_si(buf, &i);
-			ok1(strcmp(buf, "-77") == 0);
-			i = 0;
-			opt_show_intval_si(buf, &i);
-			ok1(strcmp(buf, "0") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 77;
-			opt_show_intval_si(buf, &i);
-			ok1(strcmp(buf, "77") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = -1234 * k;
-			opt_show_intval_si(buf, &i);
-			ok1(strcmp(buf, "-1234k") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 500 * M;
-			opt_show_intval_si(buf, &i);
-			ok1(strcmp(buf, "500M") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 1000 * M;
-			opt_show_intval_si(buf, &i);
-			ok1(strcmp(buf, "1G") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-		}
-
-		/* opt_show_longval_si */
-		{
-			long i;
-			char buf[OPT_SHOW_LEN+2] = { 0 };
-			buf[OPT_SHOW_LEN] = '!';
-			i = -77;
-			opt_show_longval_si(buf, &i);
-			ok1(strcmp(buf, "-77") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 77;
-			opt_show_longval_si(buf, &i);
-			ok1(strcmp(buf, "77") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = -1 * k;
-			opt_show_longval_si(buf, &i);
-			ok1(strcmp(buf, "-1k") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 500 * M;
-			opt_show_longval_si(buf, &i);
-			ok1(strcmp(buf, "500M") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 1000 * M;
-			opt_show_longval_si(buf, &i);
-			ok1(strcmp(buf, "1G") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 0;
-			opt_show_longval_si(buf, &i);
-			ok1(strcmp(buf, "0") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-		}
-
-		/* opt_show_llongval_si */
-		{
-			long long i;
-			char buf[OPT_SHOW_LEN+2] = { 0 };
-			buf[OPT_SHOW_LEN] = '!';
-			i = -7777;
-			opt_show_longlongval_si(buf, &i);
-			ok1(strcmp(buf, "-7777") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 7777;
-			opt_show_longlongval_si(buf, &i);
-			ok1(strcmp(buf, "7777") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = -10240000 * k;
-			opt_show_longlongval_si(buf, &i);
-			ok1(strcmp(buf, "-10240M") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 5 * P;
-			opt_show_longlongval_si(buf, &i);
-			ok1(strcmp(buf, "5P") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 2000 * P;
-			opt_show_longlongval_si(buf, &i);
-			ok1(strcmp(buf, "2E") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-		}
-
-		/* opt_show_uintval_si */
-		{
-			unsigned int i;
-			char buf[OPT_SHOW_LEN+2] = { 0 };
-			buf[OPT_SHOW_LEN] = '!';
-			i = 77;
-			opt_show_uintval_si(buf, &i);
-			ok1(strcmp(buf, "77") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 1234 * k;
-			opt_show_uintval_si(buf, &i);
-			ok1(strcmp(buf, "1234k") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 500 * M;
-			opt_show_uintval_si(buf, &i);
-			ok1(strcmp(buf, "500M") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 1000 * M;
-			opt_show_uintval_si(buf, &i);
-			ok1(strcmp(buf, "1G") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-		}
-
-		/* opt_show_ulongval_si */
-		{
-			unsigned long i;
-			char buf[OPT_SHOW_LEN+2] = { 0 };
-			buf[OPT_SHOW_LEN] = '!';
-			i = 77;
-			opt_show_ulongval_si(buf, &i);
-			ok1(strcmp(buf, "77") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = k;
-			opt_show_ulongval_si(buf, &i);
-			ok1(strcmp(buf, "1k") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 500 * M;
-			opt_show_ulongval_si(buf, &i);
-			ok1(strcmp(buf, "500M") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 1024 * M;
-			opt_show_ulongval_si(buf, &i);
-			ok1(strcmp(buf, "1024M") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 0;
-			opt_show_ulongval_si(buf, &i);
-			ok1(strcmp(buf, "0") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-		}
-
-		/* opt_show_ullongval_si */
-		{
-			long long i;
-			char buf[OPT_SHOW_LEN+2] = { 0 };
-			buf[OPT_SHOW_LEN] = '!';
-			i = 7777;
-			opt_show_ulonglongval_si(buf, (unsigned long long *)&i);
-			ok1(strcmp(buf, "7777") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 10240000 * k;
-			opt_show_ulonglongval_si(buf, (unsigned long long *)&i);
-			ok1(strcmp(buf, "10240M") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 5 * P;
-			opt_show_ulonglongval_si(buf, (unsigned long long *)&i);
-			ok1(strcmp(buf, "5P") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-			i = 1000 * P;
-			opt_show_ulonglongval_si(buf, (unsigned long long *)&i);
-			ok1(strcmp(buf, "1E") == 0);
-			ok1(buf[OPT_SHOW_LEN] == '!');
-		}
-
-	}
-
-
 	/* opt_inc_intval */
 	{
 		int arg = 1000;
@@ -987,7 +233,11 @@ int main(int argc, char *argv[])
 		/* parse_args allocates argv */
 		free(argv);
 
-		set_args(&argc, &argv, "thisprog", "-a", NULL);
+		argc = 2;
+		argv = malloc(sizeof(argv[0]) * 3);
+		argv[0] = "thisprog";
+		argv[1] = "-a";
+		argv[2] = NULL;
 
 		exitval = setjmp(exited);
 		if (exitval == 0) {
@@ -995,8 +245,6 @@ int main(int argc, char *argv[])
 			fail("opt_show_version_and_exit returned?");
 		} else {
 			ok1(exitval - 1 == 0);
-			/* We should have freed table!. */
-			ok1(opt_table == NULL);
 		}
 		ok1(strcmp(output, "1.2.3\n") == 0);
 		free(output);
@@ -1011,7 +259,11 @@ int main(int argc, char *argv[])
 		opt_register_noarg("-a",
 				   opt_usage_and_exit, "[args]", "");
 
-		set_args(&argc, &argv, "thisprog", "-a", NULL);
+		argc = 2;
+		argv = malloc(sizeof(argv[0]) * 3);
+		argv[0] = "thisprog";
+		argv[1] = "-a";
+		argv[2] = NULL;
 
 		exitval = setjmp(exited);
 		if (exitval == 0) {
@@ -1019,14 +271,14 @@ int main(int argc, char *argv[])
 			fail("opt_usage_and_exit returned?");
 		} else {
 			ok1(exitval - 1 == 0);
-			/* We should have freed table!. */
-			ok1(opt_table == NULL);
 		}
 		ok1(strstr(output, "[args]"));
 		ok1(strstr(output, argv[0]));
-		ok1(strstr(output, "\n-a"));
+		ok1(strstr(output, "[-a]"));
 		free(output);
 		free(argv);
+		/* It exits without freeing usage string. */
+		free(last_allocation);
 		output = NULL;
 	}
 
@@ -1146,7 +398,11 @@ int main(int argc, char *argv[])
 		opt_register_noarg("-a",
 				   opt_usage_and_exit, "[args]", "");
 
-		set_args(&argc, &argv, "thisprog", "--garbage", NULL);
+		argc = 2;
+		argv = malloc(sizeof(argv[0]) * 3);
+		argv[0] = "thisprog";
+		argv[1] = "--garbage";
+		argv[2] = NULL;
 		ok1(!opt_parse(&argc, argv, opt_log_stderr));
 		ok1(!strcmp(output,
 			    "thisprog: --garbage: unrecognized option\n"));
@@ -1161,7 +417,11 @@ int main(int argc, char *argv[])
 		reset_options();
 		opt_register_noarg("-a",
 				   opt_usage_and_exit, "[args]", "");
-		set_args(&argc, &argv, "thisprog", "--garbage", NULL);
+		argc = 2;
+		argv = malloc(sizeof(argv[0]) * 3);
+		argv[0] = "thisprog";
+		argv[1] = "--garbage";
+		argv[2] = NULL;
 		exitval = setjmp(exited);
 		if (exitval == 0) {
 			opt_parse(&argc, argv, opt_log_stderr_exit);
@@ -1176,6 +436,5 @@ int main(int argc, char *argv[])
 		output = NULL;
 	}
 
-	//diag("%s\n", err_output);
 	return exit_status();
 }
