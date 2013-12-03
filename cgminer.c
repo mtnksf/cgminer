@@ -29,10 +29,6 @@
 #include <signal.h>
 #include <limits.h>
 
-#ifdef USE_USBUTILS
-#include <semaphore.h>
-#endif
-
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -58,30 +54,11 @@ char *curly = ":D";
 #include "driver-opencl.h"
 #include "bench_block.h"
 #include "scrypt.h"
-#ifdef USE_USBUTILS
-#include "usbutils.h"
-#endif
 
 #if defined(unix) || defined(__APPLE__)
 	#include <errno.h>
 	#include <fcntl.h>
 	#include <sys/wait.h>
-#endif
-
-#ifdef USE_AVALON
-#include "driver-avalon.h"
-#endif
-
-#ifdef USE_BFLSC
-#include "driver-bflsc.h"
-#endif
-
-#ifdef USE_HASHFAST
-#include "driver-hashfast.h"
-#endif
-
-#if defined(USE_BITFORCE) || defined(USE_ICARUS) || defined(USE_AVALON) || defined(USE_MODMINER)
-#	define USE_FPGA
 #endif
 
 struct strategies strategies[] = {
@@ -113,17 +90,13 @@ static const bool opt_time = true;
 unsigned long long global_hashrate;
 unsigned long global_quota_gcd = 1;
 
-#if defined(HAVE_OPENCL) || defined(USE_USBUTILS)
+
 int nDevs;
-#endif
-#ifdef HAVE_OPENCL
+
 int opt_dynamic_interval = 7;
 int opt_g_threads = -1;
 int gpu_threads;
-#ifdef USE_SCRYPT
 bool opt_scrypt;
-#endif
-#endif
 bool opt_restart = true;
 bool opt_nogpu;
 
@@ -169,28 +142,10 @@ static bool no_work;
 char *opt_icarus_options = NULL;
 char *opt_icarus_timing = NULL;
 bool opt_worktime;
-#ifdef USE_AVALON
-char *opt_avalon_options = NULL;
-char *opt_bitburner_fury_options = NULL;
-#endif
-#ifdef USE_KLONDIKE
-char *opt_klondike_options = NULL;
-#endif
-#ifdef USE_USBUTILS
-char *opt_usb_select = NULL;
-int opt_usbdump = -1;
-bool opt_usb_list_all;
-cgsem_t usb_resource_sem;
-static pthread_t usb_poll_thread;
-static bool usb_polling;
-#endif
 
 char *opt_kernel_path;
 char *cgminer_path;
 
-#if defined(USE_BITFORCE)
-bool opt_bfl_noncerange;
-#endif
 #define QUIET	(opt_quiet || opt_realquiet)
 
 struct thr_info *control_thr;
@@ -203,10 +158,6 @@ static int input_thr_id;
 #endif
 int gpur_thr_id;
 static int api_thr_id;
-#ifdef USE_USBUTILS
-static int usbres_thr_id;
-static int hotplug_thr_id;
-#endif
 static int total_control_threads;
 bool hotplug_mode;
 static int new_devices;
@@ -215,12 +166,6 @@ int hotplug_time = 5;
 
 #if LOCK_TRACKING
 pthread_mutex_t lockstat_lock;
-#endif
-
-#ifdef USE_USBUTILS
-pthread_mutex_t cgusb_lock;
-pthread_mutex_t cgusbres_lock;
-cglock_t cgusb_fd_lock;
 #endif
 
 pthread_mutex_t hash_lock;
