@@ -594,32 +594,10 @@ static char *set_int_0_to_10(const char *arg, int *i)
 	return set_int_range(arg, i, 0, 10);
 }
 
-#ifdef USE_AVALON
-static char *set_int_0_to_100(const char *arg, int *i)
-{
-	return set_int_range(arg, i, 0, 100);
-}
-#endif
-
-#ifdef USE_BFLSC
-static char *set_int_0_to_200(const char *arg, int *i)
-{
-	return set_int_range(arg, i, 0, 200);
-}
-#endif
-
 static char *set_int_1_to_10(const char *arg, int *i)
 {
 	return set_int_range(arg, i, 1, 10);
 }
-
-#ifdef USE_FPGA_SERIAL
-static char *add_serial(char *arg)
-{
-	string_elist_add(arg, &scan_devices);
-	return NULL;
-}
-#endif
 
 void get_intrange(char *arg, int *val1, int *val2)
 {
@@ -966,56 +944,6 @@ static char *set_api_mcast_des(const char *arg)
 	return NULL;
 }
 
-#ifdef USE_ICARUS
-static char *set_icarus_options(const char *arg)
-{
-	opt_set_charp(arg, &opt_icarus_options);
-
-	return NULL;
-}
-
-static char *set_icarus_timing(const char *arg)
-{
-	opt_set_charp(arg, &opt_icarus_timing);
-
-	return NULL;
-}
-#endif
-
-#ifdef USE_AVALON
-static char *set_avalon_options(const char *arg)
-{
-	opt_set_charp(arg, &opt_avalon_options);
-
-	return NULL;
-}
-
-static char *set_bitburner_fury_options(const char *arg)
-{
-	opt_set_charp(arg, &opt_bitburner_fury_options);
-
-	return NULL;
-}
-#endif
-
-#ifdef USE_KLONDIKE
-static char *set_klondike_options(const char *arg)
-{
-	opt_set_charp(arg, &opt_klondike_options);
-
-	return NULL;
-}
-#endif
-
-#ifdef USE_USBUTILS
-static char *set_usb_select(const char *arg)
-{
-	opt_set_charp(arg, &opt_usb_select);
-
-	return NULL;
-}
-#endif
-
 static char *set_null(const char __maybe_unused *arg)
 {
 	return NULL;
@@ -1070,16 +998,6 @@ static struct opt_table opt_config_table[] = {
 	OPT_WITHOUT_ARG("--benchmark",
 			opt_set_bool, &opt_benchmark,
 			"Run cgminer in benchmark mode - produces no shares"),
-#if defined(USE_BITFORCE)
-	OPT_WITHOUT_ARG("--bfl-range",
-			opt_set_bool, &opt_bfl_noncerange,
-			"Use nonce range on bitforce devices if supported"),
-#endif
-#ifdef USE_BFLSC
-	OPT_WITH_ARG("--bflsc-overheat",
-		     set_int_0_to_200, opt_show_intval, &opt_bflsc_overheat,
-		     "Set overheat temperature where BFLSC devices throttle, 0 to disable"),
-#endif
 #ifdef HAVE_CURSES
 	OPT_WITHOUT_ARG("--compact",
 			opt_set_bool, &opt_compact,
@@ -1093,12 +1011,7 @@ static struct opt_table opt_config_table[] = {
 	             "Select device to use, one value, range and/or comma separated (e.g. 0-2,4) default: all"),
 	OPT_WITHOUT_ARG("--disable-gpu|-G",
 			opt_set_bool, &opt_nogpu,
-#ifdef HAVE_OPENCL
-			"Disable GPU mining even if suitable devices exist"
-#else
-			opt_hidden
-#endif
-	),
+			"Disable GPU mining even if suitable devices exist"),
 	OPT_WITHOUT_ARG("--disable-rejecting",
 			opt_set_bool, &opt_disable_pool,
 			"Automatically disable pools that continually reject shares"),
@@ -1111,7 +1024,6 @@ static struct opt_table opt_config_table[] = {
 	OPT_WITHOUT_ARG("--fix-protocol",
 			opt_set_bool, &opt_fix_protocol,
 			"Do not redirect to a different getwork protocol (eg. stratum)"),
-#ifdef HAVE_OPENCL
 	OPT_WITH_ARG("--gpu-dyninterval",
 		     set_int_1_to_65535, opt_show_intval, &opt_dynamic_interval,
 		     "Set the refresh interval in ms for GPUs using dynamic intensity"),
@@ -1147,7 +1059,6 @@ static struct opt_table opt_config_table[] = {
 		     set_gpu_vddc, NULL, NULL,
 		     "Set the GPU voltage in Volts - one value for all or separate by commas for per card"),
 #endif
-#ifdef USE_SCRYPT
 	OPT_WITH_ARG("--lookup-gap",
 		     set_lookup_gap, NULL, NULL,
 		     "Set GPU lookup gap for scrypt mining, comma separated"),
@@ -1156,74 +1067,17 @@ static struct opt_table opt_config_table[] = {
 		     "Intensity of GPU scanning (d or " MIN_SHA_INTENSITY_STR
 		     " -> " MAX_SCRYPT_INTENSITY_STR
 		     ",default: d to maintain desktop interactivity)"),
-#else
-	OPT_WITH_ARG("--intensity|-I",
-		     set_intensity, NULL, NULL,
-		     "Intensity of GPU scanning (d or " MIN_SHA_INTENSITY_STR
-		     " -> " MAX_SHA_INTENSITY_STR
-		     ",default: d to maintain desktop interactivity)"),
-#endif
-#endif
 	OPT_WITH_ARG("--hotplug",
 		     set_int_0_to_9999, NULL, &hotplug_time,
-#ifdef USE_USBUTILS
-		     "Seconds between hotplug checks (0 means never check)"
-#else
-		     opt_hidden
-#endif
-		    ),
-#if defined(HAVE_OPENCL) || defined(HAVE_MODMINER)
+		     opt_hidden),
+#if defined(HAVE_OPENCL)
 	OPT_WITH_ARG("--kernel-path|-K",
 		     opt_set_charp, opt_show_charp, &opt_kernel_path,
 	             "Specify a path to where bitstream and kernel files are"),
 #endif
-#ifdef HAVE_OPENCL
 	OPT_WITH_ARG("--kernel|-k",
 		     set_kernel, NULL, NULL,
 		     "Override sha256 kernel to use (diablo, poclbm, phatk or diakgcn) - one value or comma separated"),
-#endif
-#ifdef USE_ICARUS
-	OPT_WITH_ARG("--icarus-options",
-		     set_icarus_options, NULL, NULL,
-		     opt_hidden),
-	OPT_WITH_ARG("--icarus-timing",
-		     set_icarus_timing, NULL, NULL,
-		     opt_hidden),
-#endif
-#ifdef USE_AVALON
-	OPT_WITHOUT_ARG("--avalon-auto",
-			opt_set_bool, &opt_avalon_auto,
-			"Adjust avalon overclock frequency dynamically for best hashrate"),
-	OPT_WITH_ARG("--avalon-cutoff",
-		     set_int_0_to_100, opt_show_intval, &opt_avalon_overheat,
-		     "Set avalon overheat cut off temperature"),
-	OPT_WITH_ARG("--avalon-fan",
-		     set_avalon_fan, NULL, NULL,
-		     "Set fanspeed percentage for avalon, single value or range (default: 20-100)"),
-	OPT_WITH_ARG("--avalon-freq",
-		     set_avalon_freq, NULL, NULL,
-		     "Set frequency range for avalon-auto, single value or range"),
-	OPT_WITH_ARG("--avalon-options",
-		     set_avalon_options, NULL, NULL,
-		     "Set avalon options baud:miners:asic:timeout:freq"),
-	OPT_WITH_ARG("--avalon-temp",
-		     set_int_0_to_100, opt_show_intval, &opt_avalon_temp,
-		     "Set avalon target temperature"),
-	OPT_WITH_ARG("--bitburner-voltage",
-		     opt_set_intval, NULL, &opt_bitburner_core_voltage,
-		     "Set BitBurner (Avalon) core voltage, in millivolts"),
-	OPT_WITH_ARG("--bitburner-fury-voltage",
-		     opt_set_intval, NULL, &opt_bitburner_fury_core_voltage,
-		     "Set BitBurner Fury core voltage, in millivolts"),
-	OPT_WITH_ARG("--bitburner-fury-options",
-		     set_bitburner_fury_options, NULL, NULL,
-		     "Override avalon-options for BitBurner Fury boards baud:miners:asic:timeout:freq"),
-#endif
-#ifdef USE_KLONDIKE
-	OPT_WITH_ARG("--klondike-options",
-		     set_klondike_options, NULL, NULL,
-		     "Set klondike options clock:temptarget"),
-#endif
 	OPT_WITHOUT_ARG("--load-balance",
 		     set_loadbalance, &pool_strategy,
 		     "Change multipool strategy from failover to quota based balance"),
@@ -1254,12 +1108,7 @@ static struct opt_table opt_config_table[] = {
 			opt_hidden),
 	OPT_WITHOUT_ARG("--no-restart",
 			opt_set_invbool, &opt_restart,
-#ifdef HAVE_OPENCL
-			"Do not attempt to restart GPUs that hang"
-#else
-			opt_hidden
-#endif
-	),
+			"Do not attempt to restart GPUs that hang"),
 	OPT_WITHOUT_ARG("--no-submit-stale",
 			opt_set_invbool, &opt_submit_stale,
 		        "Don't submit shares if they are detected as stale"),
@@ -1299,11 +1148,6 @@ static struct opt_table opt_config_table[] = {
 	OPT_WITHOUT_ARG("--round-robin",
 		     set_rr, &pool_strategy,
 		     "Change multipool strategy from failover to round robin on failure"),
-#ifdef USE_FPGA_SERIAL
-	OPT_WITH_ARG("--scan-serial|-S",
-		     add_serial, NULL, NULL,
-		     "Serial port to probe for Serial FPGA Mining device"),
-#endif
 	OPT_WITH_ARG("--scan-time|-s",
 		     set_int_0_to_9999, opt_show_intval, &opt_scantime,
 		     "Upper bound on time spent scanning current work, in seconds"),
@@ -1313,14 +1157,12 @@ static struct opt_table opt_config_table[] = {
 	OPT_WITH_ARG("--sched-stop",
 		     set_schedtime, NULL, &schedstop,
 		     "Set a time of day in HH:MM to stop mining (will quit without a start time)"),
-#ifdef USE_SCRYPT
 	OPT_WITHOUT_ARG("--scrypt",
 			opt_set_bool, &opt_scrypt,
 			"Use the scrypt algorithm for mining (litecoin only)"),
 	OPT_WITH_ARG("--shaders",
 		     set_shaders, NULL, NULL,
 		     "GPU shaders per card for tuning scrypt, comma separated"),
-#endif
 	OPT_WITH_ARG("--sharelog",
 		     set_sharelog, NULL, NULL,
 		     "Append share log to file"),
@@ -1335,7 +1177,7 @@ static struct opt_table opt_config_table[] = {
 			opt_set_bool, &use_syslog,
 			"Use system log for output messages (default: standard error)"),
 #endif
-#if defined(HAVE_ADL) || defined(USE_BITFORCE) || defined(USE_MODMINER) || defined(USE_BFLSC)
+#if defined(HAVE_ADL)
 	OPT_WITH_ARG("--temp-cutoff",
 		     set_temp_cutoff, opt_show_intval, &opt_cutofftemp,
 		     "Temperature where a device will be automatically disabled, one value or comma separated list"),
@@ -1359,41 +1201,24 @@ static struct opt_table opt_config_table[] = {
 			opt_hidden
 #endif
 	),
-#ifdef USE_SCRYPT
 	OPT_WITH_ARG("--thread-concurrency",
 		     set_thread_concurrency, NULL, NULL,
 		     "Set GPU thread concurrency for scrypt mining, comma separated"),
-#endif
 	OPT_WITH_ARG("--url|-o",
 		     set_url, NULL, NULL,
 		     "URL for bitcoin JSON-RPC server"),
 	OPT_WITH_ARG("--user|-u",
 		     set_user, NULL, NULL,
 		     "Username for bitcoin JSON-RPC server"),
-#ifdef USE_USBUTILS
-	OPT_WITH_ARG("--usb",
-		     set_usb_select, NULL, NULL,
-		     "USB device selection"),
-	OPT_WITH_ARG("--usb-dump",
-		     set_int_0_to_10, opt_show_intval, &opt_usbdump,
-		     opt_hidden),
-	OPT_WITHOUT_ARG("--usb-list-all",
-			opt_set_bool, &opt_usb_list_all,
-			opt_hidden),
-#endif
-#ifdef HAVE_OPENCL
 	OPT_WITH_ARG("--vectors|-v",
 		     set_vector, NULL, NULL,
 		     "Override detected optimal vector (1, 2 or 4) - one value or comma separated list"),
-#endif
 	OPT_WITHOUT_ARG("--verbose",
 			opt_set_bool, &opt_log_output,
 			"Log verbose output to stderr as well as status output"),
-#ifdef HAVE_OPENCL
 	OPT_WITH_ARG("--worksize|-w",
 		     set_worksize, NULL, NULL,
 		     "Override detected optimal worksize - one value or comma separated list"),
-#endif
 	OPT_WITH_ARG("--userpass|-O",
 		     set_userpass, NULL, NULL,
 		     "Username:Password pair for bitcoin JSON-RPC server"),
@@ -1546,42 +1371,8 @@ extern const char *opt_argv0;
 static char *opt_verusage_and_exit(const char *extra)
 {
 	printf("%s\nBuilt with "
-#ifdef USE_AVALON
-		"avalon "
-#endif
-#ifdef USE_BFLSC
-		"bflsc "
-#endif
-#ifdef USE_BITFORCE
-		"bitforce "
-#endif
-#ifdef USE_BITFURY
-		"bitfury "
-#endif
-#ifdef HAVE_OPENCL
 		"GPU "
-#endif
-#ifdef USE_HASHFAST
-		"hashfast "
-#endif
-#ifdef USE_ICARUS
-		"icarus "
-#endif
-#ifdef USE_KLONDIKE
-		"klondike "
-#endif
-#ifdef USE_KNC
-		"KnC "
-#endif
-#ifdef USE_BAB
-		"BaB "
-#endif
-#ifdef USE_MODMINER
-		"modminer "
-#endif
-#ifdef USE_SCRYPT
 		"scrypt "
-#endif
 		"mining support.\n"
 		, packagename);
 	printf("%s", opt_usage(opt_argv0, extra));
@@ -1589,19 +1380,12 @@ static char *opt_verusage_and_exit(const char *extra)
 	exit(0);
 }
 
-#if defined(HAVE_OPENCL) || defined(USE_USBUTILS)
 char *display_devs(int *ndevs)
 {
 	*ndevs = 0;
-#ifdef HAVE_OPENCL
 	print_ndevs(ndevs);
-#endif
-#ifdef USE_USBUTILS
-	usb_all(0);
-#endif
 	exit(*ndevs);
 }
-#endif
 
 /* These options are available from commandline only */
 static struct opt_table opt_cmdline_table[] = {
@@ -1616,18 +1400,11 @@ static struct opt_table opt_cmdline_table[] = {
 	OPT_WITHOUT_ARG("--help|-h",
 			opt_verusage_and_exit, NULL,
 			"Print this message"),
-#if defined(HAVE_OPENCL) || defined(USE_USBUTILS)
 	OPT_WITHOUT_ARG("--ndevs|-n",
 			display_devs, &nDevs,
 			"Display "
-#ifdef HAVE_OPENCL
 			"number of detected GPUs, OpenCL platform information, "
-#endif
-#ifdef USE_USBUTILS
-			"all USB devices, "
-#endif
 			"and exit"),
-#endif
 	OPT_WITHOUT_ARG("--version|-V",
 			opt_version_and_exit, packagename,
 			"Display version and exit"),
@@ -2091,9 +1868,7 @@ static int devcursor, logstart, logcursor;
 /* statusy is where the status window goes up to in cases where it won't fit at startup */
 static int statusy;
 #endif
-#ifdef HAVE_OPENCL
 struct cgpu_info gpus[MAX_GPUDEVICES]; /* Maximum number apparently possible */
-#endif
 
 #ifdef HAVE_CURSES
 static inline void unlock_curses(void)
@@ -2321,11 +2096,6 @@ static void curses_print_devstatus(struct cgpu_info *cgpu, int count)
 	suffix_string(dh64, displayed_hashes, sizeof(displayed_hashes), 4);
 	suffix_string(dr64, displayed_rolling, sizeof(displayed_rolling), 4);
 
-#ifdef USE_USBUTILS
-	if (cgpu->usbinfo.nodev)
-		cg_wprintw(statuswin, "ZOMBIE");
-	else
-#endif
 	if (cgpu->status == LIFE_DEAD)
 		cg_wprintw(statuswin, "DEAD  ");
 	else if (cgpu->status == LIFE_SICK)
@@ -3210,16 +2980,6 @@ static void __kill_work(void)
 
 	forcelog(LOG_INFO, "Received kill message");
 
-#ifdef USE_USBUTILS
-	/* Best to get rid of it first so it doesn't
-	 * try to create any new devices */
-	if (!opt_scrypt) {
-		forcelog(LOG_DEBUG, "Killing off HotPlug thread");
-		thr = &control_thr[hotplug_thr_id];
-		kill_timeout(thr);
-	}
-#endif
-
 	forcelog(LOG_DEBUG, "Killing off watchpool thread");
 	/* Kill the watchpool thread */
 	thr = &control_thr[watchpool_thr_id];
@@ -3252,19 +3012,6 @@ static void __kill_work(void)
 	forcelog(LOG_DEBUG, "Killing off API thread");
 	thr = &control_thr[api_thr_id];
 	kill_timeout(thr);
-
-#ifdef USE_USBUTILS
-	/* Release USB resources in case it's a restart
-	 * and not a QUIT */
-	if (!opt_scrypt) {
-		forcelog(LOG_DEBUG, "Releasing all USB devices");
-		cg_completion_timeout(&usb_cleanup, NULL, 1000);
-
-		forcelog(LOG_DEBUG, "Killing off usbres thread");
-		thr = &control_thr[usbres_thr_id];
-		kill_timeout(thr);
-	}
-#endif
 
 }
 
@@ -3966,13 +3713,6 @@ static void restart_threads(void)
 	mutex_lock(&restart_lock);
 	pthread_cond_broadcast(&restart_cond);
 	mutex_unlock(&restart_lock);
-
-#ifdef USE_USBUTILS
-	/* Cancels any cancellable usb transfers. Flagged as such it means they
-	 * are usualy waiting on a read result and it's safe to abort the read
-	 * early. */
-	cancel_usb_transfers();
-#endif
 }
 
 static void signal_work_update(void)
@@ -4352,7 +4092,6 @@ void write_config(FILE *fcfg)
 		}
 	fputs("\n]\n", fcfg);
 
-#ifdef HAVE_OPENCL
 	if (nDevs) {
 		/* Write GPU device values */
 		fputs(",\n\"intensity\" : \"", fcfg);
@@ -4389,7 +4128,6 @@ void write_config(FILE *fcfg)
 					break;
 			}
 		}
-#ifdef USE_SCRYPT
 		fputs("\",\n\"lookup-gap\" : \"", fcfg);
 		for(i = 0; i < nDevs; i++)
 			fprintf(fcfg, "%s%d", i > 0 ? "," : "",
@@ -4402,7 +4140,6 @@ void write_config(FILE *fcfg)
 		for(i = 0; i < nDevs; i++)
 			fprintf(fcfg, "%s%d", i > 0 ? "," : "",
 				(int)gpus[i].shaders);
-#endif
 #ifdef HAVE_ADL
 		fputs("\",\n\"gpu-engine\" : \"", fcfg);
 		for(i = 0; i < nDevs; i++)
@@ -4434,7 +4171,6 @@ void write_config(FILE *fcfg)
 #endif
 		fputs("\"", fcfg);
 	}
-#endif
 #ifdef HAVE_ADL
 	if (opt_reorder)
 		fprintf(fcfg, ",\n\"gpu-reorder\" : true");
@@ -4524,14 +4260,6 @@ void write_config(FILE *fcfg)
 		fprintf(fcfg, ",\n\"icarus-options\" : \"%s\"", json_escape(opt_icarus_options));
 	if (opt_icarus_timing)
 		fprintf(fcfg, ",\n\"icarus-timing\" : \"%s\"", json_escape(opt_icarus_timing));
-#ifdef USE_KLONDIKE
-	if (opt_klondike_options)
-		fprintf(fcfg, ",\n\"klondike-options\" : \"%s\"", json_escape(opt_icarus_options));
-#endif
-#ifdef USE_USBUTILS
-	if (opt_usb_select)
-		fprintf(fcfg, ",\n\"usb\" : \"%s\"", json_escape(opt_usb_select));
-#endif
 	fputs("\n}\n", fcfg);
 
 	json_escape_free();
@@ -4998,10 +4726,8 @@ static void *input_thread(void __maybe_unused *userdata)
 			display_pools();
 		else if (!strncasecmp(&input, "s", 1))
 			set_options();
-#if HAVE_OPENCL
 		else if (have_opencl && !strncasecmp(&input, "g", 1))
 			manage_gpu();
-#endif
 		if (opt_realquiet) {
 			disable_curses();
 			break;
@@ -6280,7 +6006,6 @@ static void hash_sole_work(struct thr_info *mythr)
 			break;
 		}
 		work->device_diff = MIN(drv->working_diff, work->work_difficulty);
-#ifdef USE_SCRYPT
 		/* Dynamically adjust the working diff even if the target
 		 * diff is very high to ensure we can still validate scrypt is
 		 * returning shares. */
@@ -6298,7 +6023,6 @@ static void hash_sole_work(struct thr_info *mythr)
 				drv->working_diff = work->work_difficulty;
 			set_target(work->device_target, work->device_diff);
 		}
-#endif
 
 		do {
 			cgtime(&tv_start);
@@ -7094,20 +6818,9 @@ static void *watchdog_thread(void __maybe_unused *userdata)
 			count = 0;
 			for (i = 0; i < total_devices; i++) {
 				cgpu = get_devices(i);
-#ifndef USE_USBUTILS
 				if (cgpu)
-#else
-				if (cgpu && !cgpu->usbinfo.nodev)
-#endif
 					curses_print_devstatus(cgpu, count++);
 			}
-#ifdef USE_USBUTILS
-			for (i = 0; i < total_devices; i++) {
-				cgpu = get_devices(i);
-				if (cgpu && cgpu->usbinfo.nodev)
-					curses_print_devstatus(cgpu, count++);
-			}
-#endif
 			touchwin(statuswin);
 			wrefresh(statuswin);
 			touchwin(logwin);
@@ -7333,14 +7046,7 @@ void print_summary(void)
 
 static void clean_up(bool restarting)
 {
-#ifdef HAVE_OPENCL
 	clear_adl(nDevs);
-#endif
-#ifdef USE_USBUTILS
-	usb_polling = false;
-	pthread_join(usb_poll_thread, NULL);
-        libusb_exit(NULL);
-#endif
 
 	cgtime(&total_tv_end);
 #ifdef WIN32
@@ -7724,11 +7430,9 @@ void enable_device(struct cgpu_info *cgpu)
 		adj_width(mining_threads, &dev_width);
 #endif
 	}
-#ifdef HAVE_OPENCL
 	if (cgpu->drv->drv_id == DRIVER_opencl) {
 		gpu_threads += cgpu->threads;
 	}
-#endif
 	rwlock_init(&cgpu->qlock);
 	cgpu->queued_work = NULL;
 }
@@ -7790,111 +7494,6 @@ struct device_drv *copy_drv(struct device_drv *drv)
 	return copy;
 }
 
-#ifdef USE_USBUTILS
-static void hotplug_process(void)
-{
-	struct thr_info *thr;
-	int i, j;
-
-	for (i = 0; i < new_devices; i++) {
-		struct cgpu_info *cgpu;
-		int dev_no = total_devices + i;
-
-		cgpu = devices[dev_no];
-		if (!opt_devs_enabled || (opt_devs_enabled && devices_enabled[dev_no]))
-			enable_device(cgpu);
-		cgpu->cgminer_stats.getwork_wait_min.tv_sec = MIN_SEC_UNSET;
-		cgpu->rolling = cgpu->total_mhashes = 0;
-	}
-
-	wr_lock(&mining_thr_lock);
-	mining_thr = realloc(mining_thr, sizeof(thr) * (mining_threads + new_threads + 1));
-
-	if (!mining_thr)
-		quit(1, "Failed to hotplug realloc mining_thr");
-	for (i = 0; i < new_threads; i++) {
-		mining_thr[mining_threads + i] = calloc(1, sizeof(*thr));
-		if (!mining_thr[mining_threads + i])
-			quit(1, "Failed to hotplug calloc mining_thr[%d]", i);
-	}
-
-	// Start threads
-	for (i = 0; i < new_devices; ++i) {
-		struct cgpu_info *cgpu = devices[total_devices];
-		cgpu->thr = malloc(sizeof(*cgpu->thr) * (cgpu->threads+1));
-		cgpu->thr[cgpu->threads] = NULL;
-		cgpu->status = LIFE_INIT;
-		cgtime(&(cgpu->dev_start_tv));
-
-		for (j = 0; j < cgpu->threads; ++j) {
-			thr = __get_thread(mining_threads);
-			thr->id = mining_threads;
-			thr->cgpu = cgpu;
-			thr->device_thread = j;
-
-			if (cgpu->drv->thread_prepare && !cgpu->drv->thread_prepare(thr))
-				continue;
-
-			if (unlikely(thr_info_create(thr, NULL, miner_thread, thr)))
-				quit(1, "hotplug thread %d create failed", thr->id);
-
-			cgpu->thr[j] = thr;
-
-			/* Enable threads for devices set not to mine but disable
-			 * their queue in case we wish to enable them later */
-			if (cgpu->deven != DEV_DISABLED) {
-				applog(LOG_DEBUG, "Pushing sem post to thread %d", thr->id);
-				cgsem_post(&thr->sem);
-			}
-
-			mining_threads++;
-		}
-		total_devices++;
-		applog(LOG_WARNING, "Hotplug: %s added %s %i", cgpu->drv->dname, cgpu->drv->name, cgpu->device_id);
-	}
-	wr_unlock(&mining_thr_lock);
-
-	adjust_mostdevs();
-	switch_logsize(true);
-}
-
-#define DRIVER_DRV_DETECT_HOTPLUG(X) X##_drv.drv_detect(true);
-
-static void *hotplug_thread(void __maybe_unused *userdata)
-{
-	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
-
-	RenameThread("hotplug");
-
-	hotplug_mode = true;
-
-	cgsleep_ms(5000);
-
-	while (0x2a) {
-// Version 0.1 just add the devices on - worry about using nodev later
-
-		if (hotplug_time == 0)
-			cgsleep_ms(5000);
-		else {
-			new_devices = 0;
-			new_threads = 0;
-
-			/* Use the DRIVER_PARSE_COMMANDS macro to detect all
-			 * devices */
-			DRIVER_PARSE_COMMANDS(DRIVER_DRV_DETECT_HOTPLUG)
-
-			if (new_devices)
-				hotplug_process();
-
-			// hotplug_time >0 && <=9999
-			cgsleep_ms(hotplug_time * 1000);
-		}
-	}
-
-	return NULL;
-}
-#endif
-
 static void probe_pools(void)
 {
 	int i;
@@ -7910,44 +7509,7 @@ static void probe_pools(void)
 #define DRIVER_FILL_DEVICE_DRV(X) fill_device_drv(&X##_drv);
 #define DRIVER_DRV_DETECT_ALL(X) X##_drv.drv_detect(false);
 
-#ifdef USE_USBUTILS
-static void *libusb_poll_thread(void __maybe_unused *arg)
-{
-	struct timeval tv_end = {1, 0};
-
-	RenameThread("usbpoll");
-
-	while (usb_polling)
-		libusb_handle_events_timeout_completed(NULL, &tv_end, NULL);
-
-	/* Cancel any cancellable usb transfers */
-	cancel_usb_transfers();
-
-	/* Keep event handling going until there are no async transfers in
-	 * flight. */
-	do {
-		libusb_handle_events_timeout_completed(NULL, &tv_end, NULL);
-	} while (async_usb_transfers());
-
-	return NULL;
-}
-
-static void initialise_usb(void) {
-	int err = libusb_init(NULL);
-	if (err) {
-		fprintf(stderr, "libusb_init() failed err %d", err);
-		fflush(stderr);
-		quit(1, "libusb_init() failed");
-	}
-	mutex_init(&cgusb_lock);
-	mutex_init(&cgusbres_lock);
-	cglock_init(&cgusb_fd_lock);
-	usb_polling = true;
-	pthread_create(&usb_poll_thread, NULL, libusb_poll_thread, NULL);
-}
-#else
 #define initialise_usb() {}
-#endif
 
 int main(int argc, char *argv[])
 {
@@ -8033,11 +7595,9 @@ int main(int argc, char *argv[])
 
 	INIT_LIST_HEAD(&scan_devices);
 
-#ifdef HAVE_OPENCL
 	memset(gpus, 0, sizeof(gpus));
 	for (i = 0; i < MAX_GPUDEVICES; i++)
 		gpus[i].dynamic = true;
-#endif
 
 	/* parse command line */
 	opt_register_table(opt_config_table,
@@ -8111,20 +7671,6 @@ int main(int argc, char *argv[])
 
 	gwsched_thr_id = 0;
 
-#ifdef USE_USBUTILS
-	usb_initialise();
-
-	// before device detection
-	if (!opt_scrypt) {
-		cgsem_init(&usb_resource_sem);
-		usbres_thr_id = 1;
-		thr = &control_thr[usbres_thr_id];
-		if (thr_info_create(thr, NULL, usb_resource_thread, thr))
-			quit(1, "usb resource thread create failed");
-		pthread_detach(thr->pth);
-	}
-#endif
-
 	/* Use the DRIVER_PARSE_COMMANDS macro to fill all the device_drvs */
 	DRIVER_PARSE_COMMANDS(DRIVER_FILL_DEVICE_DRV)
 
@@ -8166,15 +7712,8 @@ int main(int argc, char *argv[])
 			enable_device(devices[i]);
 	}
 
-#ifdef USE_USBUTILS
-	if (!total_devices) {
-		applog(LOG_WARNING, "No devices detected!");
-		applog(LOG_WARNING, "Waiting for USB hotplug devices or press q to quit");
-	}
-#else
 	if (!total_devices)
 		quit(1, "All devices disabled, cannot mine!");
-#endif
 
 	most_devices = total_devices;
 
@@ -8333,11 +7872,9 @@ begin_bench:
 		}
 	}
 
-#ifdef HAVE_OPENCL
 	applog(LOG_INFO, "%d gpu miner threads started", gpu_threads);
 	for (i = 0; i < nDevs; i++)
 		pause_dynamic_threads(i);
-#endif
 
 	cgtime(&total_tv_start);
 	cgtime(&total_tv_end);
@@ -8356,7 +7893,6 @@ begin_bench:
 		quit(1, "watchdog thread create failed");
 	pthread_detach(thr->pth);
 
-#ifdef HAVE_OPENCL
 	/* Create reinit gpu thread */
 	gpur_thr_id = 4;
 	thr = &control_thr[gpur_thr_id];
@@ -8365,23 +7901,12 @@ begin_bench:
 		quit(1, "tq_new failed for gpur_thr_id");
 	if (thr_info_create(thr, NULL, reinit_gpu, thr))
 		quit(1, "reinit_gpu thread create failed");
-#endif	
 
 	/* Create API socket thread */
 	api_thr_id = 5;
 	thr = &control_thr[api_thr_id];
 	if (thr_info_create(thr, NULL, api_thread, thr))
 		quit(1, "API thread create failed");
-
-#ifdef USE_USBUTILS
-	if (!opt_scrypt) {
-		hotplug_thr_id = 6;
-		thr = &control_thr[hotplug_thr_id];
-		if (thr_info_create(thr, NULL, hotplug_thread, thr))
-			quit(1, "hotplug thread create failed");
-		pthread_detach(thr->pth);
-	}
-#endif
 
 #ifdef HAVE_CURSES
 	/* Create curses input thread for keyboard input. Create this last so
